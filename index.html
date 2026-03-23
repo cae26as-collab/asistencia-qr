@@ -427,13 +427,38 @@
 <!-- ════ PANEL 3: PRESENTES ═════════════════════════════════ -->
 <div class="panel" id="panel-presentes">
 
-  <div class="card">
-    <div class="presentes-header">
-      <div class="card-label" style="margin-bottom:0">Presentes registrados</div>
-      <span class="counter-badge" id="counter">0</span>
+  <div style="display:flex;gap:8px;background:var(--surface2);border-radius:10px;padding:4px;">
+    <button id="subtab-hoy" onclick="switchSubtab(this,'hoy')"
+      style="flex:1;padding:8px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;background:var(--surface);color:var(--text);transition:all .2s">
+      Presentes hoy
+    </button>
+    <button id="subtab-inasist" onclick="switchSubtab(this,'inasist')"
+      style="flex:1;padding:8px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;background:transparent;color:var(--text2);transition:all .2s">
+      Inasistencias
+    </button>
+  </div>
+
+  <div id="sub-hoy">
+    <div class="card">
+      <div class="presentes-header">
+        <div class="card-label" style="margin-bottom:0">Presentes registrados</div>
+        <span class="counter-badge" id="counter">0</span>
+      </div>
+      <div id="presentes-list" class="presentes-list">
+        <div class="empty-state">Seleccioná una clase para ver los presentes</div>
+      </div>
     </div>
-    <div id="presentes-list" class="presentes-list">
-      <div class="empty-state">Aún no hay presentes registrados</div>
+  </div>
+
+  <div id="sub-inasist" style="display:none">
+    <div class="card">
+      <div class="presentes-header">
+        <div class="card-label" style="margin-bottom:0">Inasistencias acumuladas</div>
+        <span id="total-fechas-label" style="font-size:12px;color:var(--text2)"></span>
+      </div>
+      <div id="inasist-list" class="presentes-list">
+        <div class="empty-state">Seleccioná una clase para ver las inasistencias</div>
+      </div>
     </div>
   </div>
 
@@ -607,6 +632,9 @@ function iniciarEscaneo() {
 
   switchTab("scanner");
 
+  // BUG 3 FIX: cargar presentes ya registrados desde el backend
+  cargarPresentesDesdeBackend();
+
   // Pequeño delay para que el DOM esté listo antes de iniciar la cámara
   setTimeout(arrancarCamara, 300);
 }
@@ -699,12 +727,12 @@ function procesarRespuesta(data) {
   if (data.status === "ok") {
     setSemaforo("ok", data.nombre, `DNI ${data.dni} · Presentes: ${data.totalPresentes}`);
     agregarPresente(data.nombre, data.dni);
-
   } else if (data.status === "repetido") {
     setSemaforo("warn", data.nombre, `Ya registrado · DNI ${data.dni}`);
-
   } else {
-    setSemaforo("err", "No encontrado", data.message || "Error desconocido");
+    // BUG 1 FIX: si el backend devuelve nombre, mostrarlo aunque sea error
+    const titulo = data.nombre || "Error";
+    setSemaforo("err", titulo, data.message || "Error desconocido");
   }
 }
 
@@ -736,21 +764,44 @@ function iniciarCooldownBar() {
 }
 
 // ════════════════════════════════════════════════════════════
-//  LISTA DE PRESENTES
+//  LISTA DE PRESENTES + INASISTENCIAS
 // ════════════════════════════════════════════════════════════
-function agregarPresente(nombre, dni) {
-  // Sin duplicados
-  if (state.presentes.find(p => p.dni === dni)) return;
 
+// BUG 3 FIX: recuperar lista desde backend al iniciar clase
+async function cargarPresentesDesdeBackend() {
+  if (!state.clase) return;
+  try {
+    const { curso, modalidad, materia, fecha } = state.clase;
+    const url = `${ENDPOINT_URL}?action=getPresentes&curso=${encodeURIComponent(curso)}&modalidad=${encodeURIComponent(modalidad)}&materia=${encodeURIComponent(materia)}&fecha=${encodeURIComponent(fecha)}`;
+    const res  = await fetch(url, { redirect: "follow" });
+    const data = await res.json();
+    if (data.status !== "ok") return;
+
+    // Cargar presentes de hoy sin duplicar
+    (data.presentes || []).forEach(p => {
+      if (!state.presentes.find(x => x.dni === p.dni))
+        state.presentes.push({ nombre: p.nombre, dni: p.dni });
+    });
+    renderPresentes();
+
+    // BUG 4: cargar inasistencias
+    renderInasistencias(data.inasistencias || [], data.totalFechas || 0);
+
+  } catch(e) { console.warn("No se pudo cargar presentes:", e); }
+}
+
+function agregarPresente(nombre, dni) {
+  if (state.presentes.find(p => p.dni === dni)) return;
   state.presentes.unshift({ nombre, dni });
   renderPresentes();
+  // Actualizar inasistencias en background
+  setTimeout(cargarPresentesDesdeBackend, 500);
 }
 
 function renderPresentes() {
   const list    = document.getElementById("presentes-list");
   const counter = document.getElementById("counter");
   const total   = state.presentes.length;
-
   counter.textContent = total;
 
   if (total === 0) {
@@ -767,6 +818,55 @@ function renderPresentes() {
         <span class="presente-dni">${p.dni}</span>
       </div>`;
   }).join("");
+}
+
+// BUG 4 FIX: renderizar tabla de inasistencias
+function renderInasistencias(lista, totalFechas) {
+  const el = document.getElementById("inasist-list");
+  const lbl = document.getElementById("total-fechas-label");
+  lbl.textContent = `${totalFechas} clase${totalFechas !== 1 ? "s" : ""} registradas`;
+
+  if (!lista.length) {
+    el.innerHTML = '<div class="empty-state">Sin datos todavía</div>';
+    return;
+  }
+
+  // Ordenar por más ausencias primero
+  const sorted = [...lista].sort((a,b) => b.ausencias - a.ausencias);
+
+  el.innerHTML = sorted.map(p => {
+    const pct = totalFechas > 0 ? Math.round((p.ausencias / totalFechas) * 100) : 0;
+    const color = p.ausencias === 0 ? "var(--green)"
+                : p.ausencias <= 2  ? "var(--yellow)"
+                : "var(--red)";
+    const inicial = p.nombre.trim().charAt(0).toUpperCase();
+    return `
+      <div class="presente-item" style="flex-direction:column;align-items:stretch;gap:6px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="presente-avatar" style="background:${color}">${inicial}</div>
+          <span class="presente-nombre" style="flex:1">${p.nombre}</span>
+          <span style="font-size:13px;font-weight:700;color:${color}">${p.ausencias} aus.</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="flex:1;height:4px;background:var(--border);border-radius:2px;overflow:hidden">
+            <div style="height:100%;width:${pct}%;background:${color};border-radius:2px"></div>
+          </div>
+          <span style="font-size:11px;color:var(--text2);min-width:60px;text-align:right">${p.presencias}/${totalFechas} presente</span>
+        </div>
+      </div>`;
+  }).join("");
+}
+
+// Sub-tabs dentro del panel presentes
+function switchSubtab(btn, panel) {
+  document.querySelectorAll("#panel-presentes button").forEach(b => {
+    b.style.background = "transparent";
+    b.style.color = "var(--text2)";
+  });
+  btn.style.background = "var(--surface)";
+  btn.style.color = "var(--text)";
+  document.getElementById("sub-hoy").style.display     = panel === "hoy"     ? "" : "none";
+  document.getElementById("sub-inasist").style.display = panel === "inasist" ? "" : "none";
 }
 
 // ════════════════════════════════════════════════════════════
