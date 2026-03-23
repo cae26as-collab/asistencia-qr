@@ -733,23 +733,32 @@ async function cargarImgBase64(url) {
 }
 
 async function capturarGafete(el) {
-  // 1. Recopilar todas las imgs y sus src originales
-  const imgs = [...el.querySelectorAll("img")];
-  const srcsOrig = imgs.map(img => img.src || "");
+  // Clonar el elemento en un contenedor temporal fuera del viewport
+  // Así el canvas nunca toca el elemento visible con URLs externas
+  const wrapper = document.createElement("div");
+  wrapper.style.cssText = "position:fixed;left:-9999px;top:0;pointer-events:none;z-index:-1";
+  document.body.appendChild(wrapper);
 
-  // 2. Descargar todas via proxy en paralelo
-  const b64s = await Promise.all(srcsOrig.map(src => cargarImgBase64(src)));
-
-  // 3. Reemplazar src por base64 en el DOM
-  imgs.forEach((img, i) => { if (b64s[i] && b64s[i].startsWith("data:")) img.src = b64s[i]; });
-
-  // 4. Esperar repintado
-  await new Promise(r => setTimeout(r, 150));
-
-  // 5. Capturar — todo es base64 local, sin CORS
-  let canvas;
   try {
-    canvas = await html2canvas(el, {
+    // Clonar el gafete
+    const clone = el.cloneNode(true);
+    clone.style.width  = el.offsetWidth  + "px";
+    clone.style.height = el.offsetHeight + "px";
+    wrapper.appendChild(clone);
+
+    // Reemplazar todas las imágenes del clon por base64 via proxy
+    const imgs    = [...clone.querySelectorAll("img")];
+    const srcsOrig = imgs.map(img => img.getAttribute("src") || "");
+    const b64s    = await Promise.all(srcsOrig.map(src => cargarImgBase64(src)));
+    imgs.forEach((img, i) => {
+      if (b64s[i] && b64s[i].startsWith("data:")) img.src = b64s[i];
+    });
+
+    // Esperar que el browser pinte el clon con las nuevas src
+    await new Promise(r => setTimeout(r, 150));
+
+    // Capturar el CLON — nunca tuvo URLs externas, no hay tainted
+    return await html2canvas(clone, {
       scale: 3,
       useCORS: false,
       allowTaint: true,
@@ -757,10 +766,8 @@ async function capturarGafete(el) {
       logging: false,
     });
   } finally {
-    // 6. Restaurar src originales (la vista en pantalla no cambia)
-    imgs.forEach((img, i) => { img.src = srcsOrig[i]; });
+    document.body.removeChild(wrapper);
   }
-  return canvas;
 }
 
 
