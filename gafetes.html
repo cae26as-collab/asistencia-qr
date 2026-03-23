@@ -483,19 +483,26 @@ async function cargarGafetes() {
   const modalidad= document.getElementById("sel-modalidad").value;
   const grid     = document.getElementById("gafetes-grid");
 
+  // Mostrar qué se está mandando (debug visible en pantalla)
   grid.innerHTML = `<div id="loading" style="grid-column:1/-1;display:flex;flex-direction:column;align-items:center;gap:14px;padding:60px">
-    <div class="spinner"></div><p style="color:var(--text2);font-size:14px">Cargando gafetes...</p></div>`;
+    <div class="spinner"></div>
+    <p style="color:var(--text2);font-size:14px">Cargando gafetes...</p>
+    <p style="color:var(--text2);font-size:11px;text-align:center">curso="${curso}" modalidad="${modalidad}"</p>
+    </div>`;
 
   try {
+    // Mandar sin filtro de modalidad al backend — filtrar en el frontend
+    // Esto evita problemas de encoding de tildes en la URL
     let url = `${ENDPOINT_URL}?action=getGafetes`;
-    if (curso)     url += `&curso=${encodeURIComponent(curso)}`;
-    if (modalidad) url += `&modalidad=${encodeURIComponent(modalidad)}`;
+    if (curso) url += `&curso=${encodeURIComponent(curso)}`;
+    // NO mandamos modalidad al backend — filtramos localmente
 
     const res  = await fetch(url, { redirect: "follow" });
     const data = await res.json();
     if (data.status !== "ok") throw new Error(data.message);
 
-    state.gafetes = data.gafetes;
+    state.gafetes  = data.gafetes;
+    state._dbgTotal = data._total || 0;
     aplicarFiltro();
 
   } catch(e) {
@@ -503,14 +510,20 @@ async function cargarGafetes() {
   }
 }
 
+function normalizar(s) {
+  // Elimina tildes y pasa a minúsculas para comparación robusta
+  return s.toString().normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim();
+}
+
 function aplicarFiltro() {
   const curso    = document.getElementById("sel-curso").value;
   const modalidad= document.getElementById("sel-modalidad").value;
 
-  state.visibles = state.gafetes.filter(g =>
-    (!curso     || g.curso     === curso) &&
-    (!modalidad || g.modalidad === modalidad)
-  );
+  state.visibles = state.gafetes.filter(g => {
+    const matchModal = !modalidad || normalizar(g.modalidad) === normalizar(modalidad);
+    return matchModal;
+    // Curso ya viene filtrado desde el backend
+  });
 
   renderGrid();
 }
