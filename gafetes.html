@@ -733,32 +733,46 @@ async function cargarImgBase64(url) {
 }
 
 async function capturarGafete(el) {
-  // Clonar el elemento en un contenedor temporal fuera del viewport
-  // Así el canvas nunca toca el elemento visible con URLs externas
+  const W = el.offsetWidth;
+  const H = el.offsetHeight;
+
+  // Recoger src originales ANTES de tocar el DOM
+  const imgEls  = [...el.querySelectorAll("img")];
+  const srcs    = imgEls.map(img => img.getAttribute("src") || "");
+
+  // Descargar todas como base64 via proxy en paralelo
+  const b64s = await Promise.all(srcs.map(src => cargarImgBase64(src)));
+
+  // Crear wrapper invisible
   const wrapper = document.createElement("div");
-  wrapper.style.cssText = "position:fixed;left:-9999px;top:0;pointer-events:none;z-index:-1";
+  wrapper.style.cssText = "position:fixed;left:-9999px;top:0;width:" + W + "px;height:" + H + "px;overflow:hidden;";
   document.body.appendChild(wrapper);
 
   try {
-    // Clonar el gafete
-    const clone = el.cloneNode(true);
-    clone.style.width  = el.offsetWidth  + "px";
-    clone.style.height = el.offsetHeight + "px";
-    wrapper.appendChild(clone);
-
-    // Reemplazar todas las imágenes del clon por base64 via proxy
-    const imgs    = [...clone.querySelectorAll("img")];
-    const srcsOrig = imgs.map(img => img.getAttribute("src") || "");
-    const b64s    = await Promise.all(srcsOrig.map(src => cargarImgBase64(src)));
-    imgs.forEach((img, i) => {
-      if (b64s[i] && b64s[i].startsWith("data:")) img.src = b64s[i];
+    // Construir HTML del clon con src=base64 directo — nunca pasa por URL externa
+    const cloneHTML = el.outerHTML;
+    // Reemplazar cada src por su base64 correspondiente
+    let patchedHTML = cloneHTML;
+    srcs.forEach((src, i) => {
+      if (src && b64s[i] && b64s[i].startsWith("data:")) {
+        // Escapar caracteres especiales de la URL para usarla como pattern
+        const escaped = src.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        patchedHTML = patchedHTML.replace(new RegExp(escaped, "g"), b64s[i]);
+      }
     });
 
-    // Esperar que el browser pinte el clon con las nuevas src
-    await new Promise(r => setTimeout(r, 150));
+    wrapper.innerHTML = patchedHTML;
+    const cloneEl = wrapper.firstElementChild;
+    cloneEl.style.width  = W + "px";
+    cloneEl.style.height = H + "px";
 
-    // Capturar el CLON — nunca tuvo URLs externas, no hay tainted
-    return await html2canvas(clone, {
+    // Esperar que las imágenes base64 terminen de cargar en el clon
+    await Promise.all([...cloneEl.querySelectorAll("img")].map(img =>
+      img.complete ? Promise.resolve() : new Promise(r => { img.onload = r; img.onerror = r; setTimeout(r, 3000); })
+    ));
+    await new Promise(r => setTimeout(r, 100));
+
+    return await html2canvas(cloneEl, {
       scale: 3,
       useCORS: false,
       allowTaint: true,
