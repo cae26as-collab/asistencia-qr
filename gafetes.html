@@ -713,64 +713,56 @@ async function exportarZIP() {
 }
 
 // ── Helper compartido: capturar un elemento .gafete a canvas ─
-// Cache de imágenes convertidas a base64 para evitar re-pedidos
+// ── CACHÉ DE IMÁGENES BASE64 ─────────────────────────────────
 const imgCache = {};
 
-async function urlABase64(url) {
+async function cargarImgBase64(url) {
   if (!url || url.startsWith("data:")) return url;
   if (imgCache[url]) return imgCache[url];
   try {
     const proxyUrl = `${ENDPOINT_URL}?action=proxyImg&url=${encodeURIComponent(url)}`;
-    const res = await fetch(proxyUrl, { redirect: "follow" });
+    const res  = await fetch(proxyUrl, { redirect: "follow" });
     const data = await res.json();
     if (data.status === "ok" && data.b64) {
-      imgCache[url] = `data:${data.mime};base64,${data.b64}`;
-      return imgCache[url];
+      const dataUrl = `data:${data.mime};base64,${data.b64}`;
+      imgCache[url] = dataUrl;
+      return dataUrl;
     }
-  } catch(e) { console.warn("proxy img error:", e); }
-  return url; // fallback: URL original
+  } catch(e) { console.warn("proxyImg error:", url, e); }
+  return url;
 }
 
 async function capturarGafete(el) {
-  // Paso 1: guardar srcs originales para restaurar después
+  // 1. Recopilar todas las imgs y sus src originales
   const imgs = [...el.querySelectorAll("img")];
-  const srcsOriginales = imgs.map(img => img.getAttribute("src") || "");
+  const srcsOrig = imgs.map(img => img.src || "");
 
-  // Paso 2: reemplazar TODAS las imgs por base64 (evita canvas tainted)
-  await Promise.all(imgs.map(async (img, i) => {
-    const src = srcsOriginales[i];
-    if (!src || src.startsWith("data:") || src.startsWith("blob:")) return;
-    try {
-      const b64 = await urlABase64(src);
-      if (b64 && b64.startsWith("data:")) {
-        img.src = b64;
-      }
-    } catch(e) {
-      // Si falla el proxy, poner placeholder para no contaminar el canvas
-      img.src = "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
-    }
-  }));
+  // 2. Descargar todas via proxy en paralelo
+  const b64s = await Promise.all(srcsOrig.map(src => cargarImgBase64(src)));
 
-  // Paso 3: esperar repintado
-  await new Promise(r => setTimeout(r, 120));
+  // 3. Reemplazar src por base64 en el DOM
+  imgs.forEach((img, i) => { if (b64s[i] && b64s[i].startsWith("data:")) img.src = b64s[i]; });
 
-  // Paso 4: capturar — sin useCORS porque todo es base64/local ahora
+  // 4. Esperar repintado
+  await new Promise(r => setTimeout(r, 150));
+
+  // 5. Capturar — todo es base64 local, sin CORS
   let canvas;
   try {
     canvas = await html2canvas(el, {
       scale: 3,
       useCORS: false,
-      allowTaint: false,
+      allowTaint: true,
       backgroundColor: "#ffffff",
       logging: false,
     });
   } finally {
-    // Paso 5: restaurar srcs originales para que la vista en pantalla no cambie
-    imgs.forEach((img, i) => { img.src = srcsOriginales[i]; });
+    // 6. Restaurar src originales (la vista en pantalla no cambia)
+    imgs.forEach((img, i) => { img.src = srcsOrig[i]; });
   }
-
   return canvas;
 }
+
 
 // ════════════════════════════════════════════════════════════
 //  IMPRIMIR (8 gafetes por hoja A4)
