@@ -567,17 +567,38 @@ function renderGrid() {
 // ════════════════════════════════════════════════════════════
 //  CONSTRUIR HTML DE UN GAFETE
 // ════════════════════════════════════════════════════════════
+// Convierte cualquier URL de Google Drive al formato directo lh3
+// que es el único que funciona con html2canvas (sin CORS bloqueado)
+function normalizarUrlDrive(url) {
+  if (!url) return "";
+  // Ya es formato directo
+  if (url.includes("lh3.googleusercontent.com")) return url;
+  // drive.google.com/file/d/FILE_ID/view → lh3.googleusercontent.com/d/FILE_ID
+  let m = url.match(/\/file\/d\/([^\/\?&]+)/);
+  if (m) return `https://lh3.googleusercontent.com/d/${m[1]}`;
+  // drive.google.com/open?id=FILE_ID o ?id=FILE_ID
+  m = url.match(/[?&]id=([^&]+)/);
+  if (m) return `https://lh3.googleusercontent.com/d/${m[1]}`;
+  // uc?export=view&id=FILE_ID
+  m = url.match(/id=([a-zA-Z0-9_-]{25,})/);
+  if (m) return `https://lh3.googleusercontent.com/d/${m[1]}`;
+  return url;
+}
+
 function buildGafeteHTML(g, idx) {
-  const logo = g.logoUrl
-    ? `<img class="gafete-logo" src="${g.logoUrl}" onerror="this.style.display='none'" alt="logo">`
+  const logoUrl = normalizarUrlDrive(g.logoUrl);
+  const fotoUrl = normalizarUrlDrive(g.fotoUrl);
+
+  const logo = logoUrl
+    ? `<img class="gafete-logo" src="${logoUrl}" crossorigin="anonymous" onerror="this.style.display='none'" alt="logo">`
     : `<div class="gafete-logo-placeholder"></div>`;
 
-  const foto = g.fotoUrl
-    ? `<img class="gafete-foto" src="${g.fotoUrl}" onerror="this.parentElement.innerHTML='<div class=gafete-foto-placeholder>👤</div>'" alt="foto">`
+  const foto = fotoUrl
+    ? `<img class="gafete-foto" src="${fotoUrl}" crossorigin="anonymous" onerror="this.parentElement.innerHTML='<div class=gafete-foto-placeholder>👤</div>'" alt="foto">`
     : `<div class="gafete-foto-placeholder">👤</div>`;
 
   const qr = g.qrUrl
-    ? `<img class="gafete-qr" src="${g.qrUrl}" alt="QR" onerror="this.style.opacity='0.3'">`
+    ? `<img class="gafete-qr" src="${g.qrUrl}" crossorigin="anonymous" alt="QR" onerror="this.style.opacity='0.3'">`
     : `<div style="font-size:10px;color:#aaa;text-align:center">Sin QR</div>`;
 
   return `<div class="gafete" id="gafete-${idx}" data-idx="${idx}">
@@ -693,12 +714,19 @@ async function exportarZIP() {
 
 // ── Helper compartido: capturar un elemento .gafete a canvas ─
 async function capturarGafete(el) {
+  // Esperar a que todas las imágenes del gafete terminen de cargar
+  const imgs = el.querySelectorAll("img");
+  await Promise.all([...imgs].map(img => {
+    if (img.complete) return Promise.resolve();
+    return new Promise(res => { img.onload = res; img.onerror = res; });
+  }));
   return html2canvas(el, {
     scale: 3,
     useCORS: true,
-    allowTaint: true,
+    allowTaint: false,   // false cuando useCORS:true para evitar conflicto
     backgroundColor: "#ffffff",
     logging: false,
+    imageTimeout: 15000,
   });
 }
 
