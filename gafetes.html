@@ -354,13 +354,13 @@ select:focus { border-color: var(--accent); }
 <div class="controls">
   <div class="ctrl-group">
     <label>Curso</label>
-    <select id="sel-curso" onchange="onFiltroChange()">
+    <select id="sel-curso" onchange="onCursoChange()">
       <option value="">Todos los cursos</option>
     </select>
   </div>
   <div class="ctrl-group">
     <label>Modalidad</label>
-    <select id="sel-modalidad" onchange="onFiltroChange()">
+    <select id="sel-modalidad">
       <option value="">Todas las modalidades</option>
     </select>
   </div>
@@ -449,22 +449,30 @@ function poblarFiltros() {
   });
 }
 
-function onFiltroChange() {
+// Solo actualiza el dropdown de modalidad — no filtra ni carga nada
+// Esto evita el bug de Android donde onchange se dispara mientras
+// el picker nativo aún está abierto, vaciando la selección
+function onCursoChange() {
   const curso = document.getElementById("sel-curso").value;
   const selM  = document.getElementById("sel-modalidad");
 
+  // Guardar valor actual antes de reconstruir las opciones
+  const valorActual = selM.value;
+
   selM.innerHTML = '<option value="">Todas las modalidades</option>';
-  const modals = state.grupos
-    .filter(g => !curso || g.curso === curso)
-    .map(g => g.modalidad);
-  [...new Set(modals)].forEach(m => {
+  const modals = [...new Set(
+    state.grupos
+      .filter(g => !curso || g.curso === curso)
+      .map(g => g.modalidad)
+  )];
+  modals.forEach(m => {
     const o = document.createElement("option");
     o.value = m; o.textContent = m;
     selM.appendChild(o);
   });
 
-  // Re-filtrar si ya hay gafetes cargados
-  if (state.gafetes.length) aplicarFiltro();
+  // Restaurar selección si sigue siendo válida
+  if (modals.includes(valorActual)) selM.value = valorActual;
 }
 
 // ════════════════════════════════════════════════════════════
