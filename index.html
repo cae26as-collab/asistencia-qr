@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Asistencia QR</title>
+
+<!--
+  ╔══════════════════════════════════════════════════════════════╗
+  ║  SISTEMA DE ASISTENCIA QR — FRONTEND                        ║
+  ║  Requiere: https hosting (para acceso a cámara)             ║
+  ║  Reemplazar ENDPOINT_URL con la URL de tu deploy de GAS     ║
+  ╚══════════════════════════════════════════════════════════════╝
+-->
+
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+<style>
+  :root {
+    --bg:        #0f1117;
+    --surface:   #1a1d27;
+    --surface2:  #242736;
+    --border:    #2e3246;
+    --text:      #e8eaf2;
+    --text2:     #8890aa;
+    --accent:    #4e7cff;
+    --green:     #22c55e;
+    --green-bg:  #052e16;
+    --yellow:    #f59e0b;
+    --yellow-bg: #1c1003;
+    --red:       #ef4444;
+    --red-bg:    #1c0303;
+    --radius:    12px;
+    --transition: 0.25s ease;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── HEADER ─────────────────────────────────────────── */
+  .header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .header-icon {
+    width: 32px; height: 32px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+  }
+  .header h1 { font-size: 16px; font-weight: 600; letter-spacing: -0.3px; }
+  .header span { font-size: 12px; color: var(--text2); }
+
+  /* ── TABS ───────────────────────────────────────────── */
+  .tabs {
+    display: flex;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 8px;
+  }
+  .tab {
+    flex: 1;
+    padding: 12px 4px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text2);
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    transition: all var(--transition);
+    user-select: none;
+  }
+  .tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+
+  /* ── CONTENT ─────────────────────────────────────────── */
+  .panel { display: none; flex-direction: column; gap: 14px; padding: 16px; }
+  .panel.active { display: flex; }
+
+  /* ── CARD ────────────────────────────────────────────── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+  }
+  .card-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: var(--text2);
+    margin-bottom: 12px;
+  }
+
+  /* ── FORM CONTROLS ───────────────────────────────────── */
+  .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+  .form-group:last-child { margin-bottom: 0; }
+
+  label { font-size: 13px; color: var(--text2); font-weight: 500; }
+
+  select, input[type="date"] {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 14px;
+    padding: 10px 12px;
+    width: 100%;
+    appearance: none;
+    -webkit-appearance: none;
+    outline: none;
+    transition: border-color var(--transition);
+  }
+  select:focus, input[type="date"]:focus {
+    border-color: var(--accent);
+  }
+  select option { background: var(--surface2); }
+
+  /* ── BTN ─────────────────────────────────────────────── */
+  .btn {
+    width: 100%;
+    padding: 13px;
+    border: none;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition);
+    letter-spacing: -0.2px;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+  }
+  .btn-primary:hover { filter: brightness(1.1); }
+  .btn-primary:active { transform: scale(0.98); }
+  .btn-danger { background: var(--red-bg); color: var(--red); border: 1px solid var(--red); }
+
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ── QR READER ───────────────────────────────────────── */
+  #qr-reader {
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: #000;
+    width: 100%;
+    aspect-ratio: 1;
+    max-width: 380px;
+    margin: 0 auto;
+  }
+  /* Ocultar UI extra de html5-qrcode */
+  #qr-reader img, #qr-reader select, #qr-reader button:not(#qr-reader__camera_permission_button) {
+    display: none !important;
+  }
+  #qr-reader__scan_region { border: none !important; }
+  #qr-reader video { border-radius: var(--radius) !important; }
+
+  /* ── SEMÁFORO ────────────────────────────────────────── */
+  .semaforo {
+    border-radius: var(--radius);
+    padding: 18px;
+    border-width: 1px;
+    border-style: solid;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-height: 80px;
+    transition: all var(--transition);
+  }
+  .semaforo.idle { background: var(--surface2); border-color: var(--border); }
+  .semaforo.ok   { background: var(--green-bg); border-color: var(--green); }
+  .semaforo.warn { background: var(--yellow-bg); border-color: var(--yellow); }
+  .semaforo.err  { background: var(--red-bg); border-color: var(--red); }
+
+  .semaforo-dot {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+    transition: background var(--transition);
+  }
+  .idle .semaforo-dot  { background: var(--surface); }
+  .ok .semaforo-dot    { background: var(--green); }
+  .warn .semaforo-dot  { background: var(--yellow); }
+  .err .semaforo-dot   { background: var(--red); }
+
+  .semaforo-info { flex: 1; overflow: hidden; }
+  .semaforo-nombre {
+    font-size: 16px; font-weight: 600;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .semaforo-sub { font-size: 13px; color: var(--text2); margin-top: 2px; }
+
+  /* ── SCANNER STATUS BAR ──────────────────────────────── */
+  .scan-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 13px;
+  }
+  .scan-badge {
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+  .scan-badge.active { background: var(--green-bg); color: var(--green); }
+  .scan-badge.idle   { background: var(--surface2); color: var(--text2); }
+
+  /* ── PANEL DE PRESENTES ──────────────────────────────── */
+  .presentes-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .counter-badge {
+    background: var(--accent);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 20px;
+    min-width: 36px;
+    text-align: center;
+  }
+
+  .presentes-list { display: flex; flex-direction: column; gap: 6px; }
+
+  .presente-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    animation: slideIn 0.2s ease;
+  }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .presente-avatar {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; color: #fff;
+    flex-shrink: 0;
+  }
+  .presente-nombre { font-size: 14px; font-weight: 500; flex: 1; }
+  .presente-dni { font-size: 12px; color: var(--text2); }
+
+  .empty-state {
+    text-align: center; padding: 32px 16px;
+    color: var(--text2); font-size: 14px;
+  }
+
+  /* ── LOADING OVERLAY ─────────────────────────────────── */
+  #loading-overlay {
+    position: fixed; inset: 0;
+    background: rgba(15,17,23,0.85);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 999;
+    flex-direction: column; gap: 12px;
+  }
+  .spinner {
+    width: 36px; height: 36px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #loading-overlay p { font-size: 14px; color: var(--text2); }
+
+  /* ── COOLDOWN VISUAL ─────────────────────────────────── */
+  .cooldown-bar {
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .cooldown-fill {
+    height: 100%;
+    background: var(--accent);
+    width: 0%;
+    transition: width 0.1s linear;
+  }
+
+  /* ── INFO CONFIG ──────────────────────────────────────── */
+  .config-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 4px 10px;
+    font-size: 12px;
+    color: var(--text2);
+  }
+  .config-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+</style>
+
+<!-- Google Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<!-- ── LOADING OVERLAY ────────────────────────────────────── -->
+<div id="loading-overlay">
+  <div class="spinner"></div>
+  <p>Cargando configuración...</p>
+</div>
+
+<!-- ── HEADER ─────────────────────────────────────────────── -->
+<div class="header">
+  <div class="header-icon">📋</div>
+  <div>
+    <h1>Asistencia QR</h1>
+    <span id="header-sub">Inicializando...</span>
+  </div>
+</div>
+
+<!-- ── TABS ───────────────────────────────────────────────── -->
+<div class="tabs">
+  <div class="tab active" data-tab="config">⚙ Configurar</div>
+  <div class="tab" data-tab="scanner">📷 Escanear</div>
+  <div class="tab" data-tab="presentes">👥 Presentes</div>
+</div>
+
+<!-- ════ PANEL 1: CONFIGURACIÓN ════════════════════════════ -->
+<div class="panel active" id="panel-config">
+
+  <div class="card">
+    <div class="card-label">Fecha de clase</div>
+    <div class="form-group">
+      <input type="date" id="input-fecha" />
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Selección de clase</div>
+    <div class="form-group">
+      <label>Curso</label>
+      <select id="sel-curso">
+        <option value="">— Seleccioná un curso —</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Modalidad</label>
+      <select id="sel-modalidad" disabled>
+        <option value="">— Primero seleccioná un curso —</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Materia</label>
+      <select id="sel-materia" disabled>
+        <option value="">— Primero seleccioná modalidad —</option>
+      </select>
+    </div>
+  </div>
+
+  <button class="btn btn-primary" id="btn-iniciar" disabled onclick="iniciarEscaneo()">
+    Iniciar escaneo →
+  </button>
+
+</div>
+
+<!-- ════ PANEL 2: SCANNER ═══════════════════════════════════ -->
+<div class="panel" id="panel-scanner">
+
+  <!-- Semáforo -->
+  <div class="semaforo idle" id="semaforo">
+    <div class="semaforo-dot" id="sem-dot">🎯</div>
+    <div class="semaforo-info">
+      <div class="semaforo-nombre" id="sem-nombre">Esperando escaneo...</div>
+      <div class="semaforo-sub" id="sem-sub">Apuntá la cámara al código QR</div>
+    </div>
+  </div>
+
+  <!-- Barra de cooldown -->
+  <div class="cooldown-bar">
+    <div class="cooldown-fill" id="cooldown-fill"></div>
+  </div>
+
+  <!-- Info de clase activa -->
+  <div class="config-chips" id="chips-config"></div>
+
+  <!-- Estado del scanner -->
+  <div class="scan-bar">
+    <span id="scan-status" style="color:var(--text2); font-size:13px;">Scanner inactivo</span>
+    <span class="scan-badge idle" id="scan-badge">INACTIVO</span>
+  </div>
+
+  <!-- Visor QR -->
+  <div id="qr-reader"></div>
+
+  <!-- Botón detener -->
+  <button class="btn btn-danger" id="btn-detener" onclick="detenerEscaneo()" style="display:none">
+    ⏹ Detener scanner
+  </button>
+
+  <!-- Botón volver -->
+  <button class="btn" style="background:var(--surface2);color:var(--text)" onclick="switchTab('config')">
+    ← Cambiar configuración
+  </button>
+
+</div>
+
+<!-- ════ PANEL 3: PRESENTES ═════════════════════════════════ -->
+<div class="panel" id="panel-presentes">
+
+  <div class="card">
+    <div class="presentes-header">
+      <div class="card-label" style="margin-bottom:0">Presentes registrados</div>
+      <span class="counter-badge" id="counter">0</span>
+    </div>
+    <div id="presentes-list" class="presentes-list">
+      <div class="empty-state">Aún no hay presentes registrados</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════════
+//  CONFIGURACIÓN — REEMPLAZÁ ESTA URL CON TU DEPLOY DE GAS
+// ════════════════════════════════════════════════════════════
+const ENDPOINT_URL = "https://script.google.com/macros/s/AKfycbyG29YuT-tqDyvcOko6RV0ca4EkCFwkzu445qQTOeAMHEe4tjmpYA6RLmTxlpd2VjdBkg/exec";
+
+// ════════════════════════════════════════════════════════════
+//  ESTADO DE LA APP
+// ════════════════════════════════════════════════════════════
+const state = {
+  config:      [],       // Array de { curso, modalidad, materia } desde GAS
+  clase:       null,     // { fecha, curso, modalidad, materia }
+  presentes:   [],       // [{ nombre, dni }]
+  scanner:     null,     // instancia de Html5Qrcode
+  scanning:    false,
+  processing:  false,    // evita escaneos simultáneos
+  cooldownMs:  2500,     // ms de pausa tras cada escaneo
+};
+
+// ════════════════════════════════════════════════════════════
+//  INICIO
+// ════════════════════════════════════════════════════════════
+window.addEventListener("DOMContentLoaded", async () => {
+  // Fecha de hoy por defecto
+  const hoy = new Date().toISOString().slice(0, 10);
+  document.getElementById("input-fecha").value = hoy;
+
+  // Tabs
+  document.querySelectorAll(".tab").forEach(t =>
+    t.addEventListener("click", () => switchTab(t.dataset.tab))
+  );
+
+  // Selectores en cascada
+  document.getElementById("sel-curso").addEventListener("change", onCursoChange);
+  document.getElementById("sel-modalidad").addEventListener("change", onModalidadChange);
+  document.getElementById("sel-materia").addEventListener("change", validarFormulario);
+  document.getElementById("input-fecha").addEventListener("change", validarFormulario);
+
+  // Cargar configuración desde GAS
+  await cargarConfig();
+});
+
+// ── Cargar CONFIG_ASISTENCIA desde el backend ────────────────
+async function cargarConfig() {
+  try {
+    const res = await fetch(`${ENDPOINT_URL}?action=getConfig`);
+    const data = await res.json();
+
+    if (data.status !== "ok" || !data.config) throw new Error(data.message || "Sin config");
+
+    state.config = data.config;
+    poblarCursos();
+    document.getElementById("header-sub").textContent = `${data.config.length} combinaciones activas`;
+
+  } catch (err) {
+    document.getElementById("header-sub").textContent = "Error al cargar config";
+    alert("⚠ No se pudo conectar con el backend.\n\nVerificá que:\n1. La URL del endpoint es correcta\n2. El script está publicado como 'Cualquier persona'\n\nError: " + err.message);
+  } finally {
+    document.getElementById("loading-overlay").style.display = "none";
+  }
+}
+
+// ── Poblar dropdown de cursos ────────────────────────────────
+function poblarCursos() {
+  const cursos = [...new Set(state.config.map(c => c.curso))].sort((a,b) => a - b);
+  const sel = document.getElementById("sel-curso");
+  sel.innerHTML = '<option value="">— Seleccioná un curso —</option>';
+  cursos.forEach(c => {
+    const opt = document.createElement("option");
+    opt.value = c;
+    opt.textContent = `${c}° año`;
+    sel.appendChild(opt);
+  });
+}
+
+function onCursoChange() {
+  const curso = parseInt(document.getElementById("sel-curso").value, 10);
+  const selModal = document.getElementById("sel-modalidad");
+  const selMat   = document.getElementById("sel-materia");
+
+  selModal.innerHTML = '<option value="">— Seleccioná modalidad —</option>';
+  selMat.innerHTML   = '<option value="">— Primero seleccioná modalidad —</option>';
+  selModal.disabled = true;
+  selMat.disabled   = true;
+
+  if (!curso) return validarFormulario();
+
+  const modalidades = [...new Set(
+    state.config.filter(c => c.curso === curso).map(c => c.modalidad)
+  )];
+  modalidades.forEach(m => {
+    const opt = document.createElement("option");
+    opt.value = m; opt.textContent = m;
+    selModal.appendChild(opt);
+  });
+  selModal.disabled = false;
+  validarFormulario();
+}
+
+function onModalidadChange() {
+  const curso     = parseInt(document.getElementById("sel-curso").value, 10);
+  const modalidad = document.getElementById("sel-modalidad").value;
+  const selMat    = document.getElementById("sel-materia");
+
+  selMat.innerHTML = '<option value="">— Seleccioná materia —</option>';
+  selMat.disabled  = true;
+
+  if (!modalidad) return validarFormulario();
+
+  const materias = state.config
+    .filter(c => c.curso === curso && c.modalidad === modalidad)
+    .map(c => c.materia);
+
+  materias.forEach(m => {
+    const opt = document.createElement("option");
+    opt.value = m; opt.textContent = m;
+    selMat.appendChild(opt);
+  });
+  selMat.disabled = false;
+  validarFormulario();
+}
+
+function validarFormulario() {
+  const ok =
+    document.getElementById("input-fecha").value &&
+    document.getElementById("sel-curso").value &&
+    document.getElementById("sel-modalidad").value &&
+    document.getElementById("sel-materia").value;
+  document.getElementById("btn-iniciar").disabled = !ok;
+}
+
+// ════════════════════════════════════════════════════════════
+//  NAVEGACIÓN POR TABS
+// ════════════════════════════════════════════════════════════
+function switchTab(tab) {
+  document.querySelectorAll(".tab").forEach(t =>
+    t.classList.toggle("active", t.dataset.tab === tab)
+  );
+  document.querySelectorAll(".panel").forEach(p =>
+    p.classList.toggle("active", p.id === `panel-${tab}`)
+  );
+}
+
+// ════════════════════════════════════════════════════════════
+//  SCANNER
+// ════════════════════════════════════════════════════════════
+function iniciarEscaneo() {
+  state.clase = {
+    fecha:     document.getElementById("input-fecha").value,
+    curso:     document.getElementById("sel-curso").value,
+    modalidad: document.getElementById("sel-modalidad").value,
+    materia:   document.getElementById("sel-materia").value,
+  };
+
+  // Mostrar chips de config activa
+  const chips = document.getElementById("chips-config");
+  chips.innerHTML = [
+    `📅 ${formatFechaDisplay(state.clase.fecha)}`,
+    `🎓 ${state.clase.curso}° año`,
+    `🏫 ${state.clase.modalidad}`,
+    `📚 ${state.clase.materia}`
+  ].map(t => `<span class="config-chip">${t}</span>`).join("");
+
+  switchTab("scanner");
+
+  // Pequeño delay para que el DOM esté listo antes de iniciar la cámara
+  setTimeout(arrancarCamara, 300);
+}
+
+async function arrancarCamara() {
+  try {
+    if (state.scanner) {
+      try { await state.scanner.stop(); } catch(e) {}
+    }
+
+    state.scanner = new Html5Qrcode("qr-reader");
+
+    await state.scanner.start(
+      { facingMode: "environment" },  // cámara trasera
+      {
+        fps: 10,
+        qrbox: { width: 240, height: 240 },
+        aspectRatio: 1.0,
+        disableFlip: false,
+      },
+      onScanExito,
+      onScanError  // silencioso
+    );
+
+    state.scanning = true;
+    document.getElementById("scan-badge").textContent = "ACTIVO";
+    document.getElementById("scan-badge").className   = "scan-badge active";
+    document.getElementById("scan-status").textContent = "Listo para escanear";
+    document.getElementById("btn-detener").style.display = "block";
+
+  } catch (err) {
+    setSemaforo("err", "Error de cámara", err.message);
+    console.error("Error iniciando cámara:", err);
+  }
+}
+
+function detenerEscaneo() {
+  if (state.scanner && state.scanning) {
+    state.scanner.stop().then(() => {
+      state.scanning = false;
+      document.getElementById("scan-badge").textContent = "INACTIVO";
+      document.getElementById("scan-badge").className   = "scan-badge idle";
+      document.getElementById("scan-status").textContent = "Scanner detenido";
+      document.getElementById("btn-detener").style.display = "none";
+    }).catch(console.error);
+  }
+}
+
+// ── Callback exitoso del scanner ─────────────────────────────
+async function onScanExito(dni) {
+  if (state.processing) return;
+  state.processing = true;
+
+  try {
+    setSemaforo("idle", "Verificando...", `DNI: ${dni}`);
+    iniciarCooldownBar();
+
+    const body = {
+      dni:       dni.trim(),
+      fecha:     state.clase.fecha,
+      curso:     state.clase.curso,
+      modalidad: state.clase.modalidad,
+      materia:   state.clase.materia,
+    };
+
+    const res = await fetch(ENDPOINT_URL, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify(body),
+    });
+
+    const data = await res.json();
+    procesarRespuesta(data);
+
+  } catch (err) {
+    setSemaforo("err", "Error de red", err.message);
+  } finally {
+    // Cooldown: evita re-escaneos rápidos
+    setTimeout(() => { state.processing = false; }, state.cooldownMs);
+  }
+}
+
+function onScanError(err) {
+  // Silencioso — ocurre constantemente mientras no hay QR en foco
+}
+
+function procesarRespuesta(data) {
+  if (data.status === "ok") {
+    setSemaforo("ok", data.nombre, `DNI ${data.dni} · Presentes: ${data.totalPresentes}`);
+    agregarPresente(data.nombre, data.dni);
+
+  } else if (data.status === "repetido") {
+    setSemaforo("warn", data.nombre, `Ya registrado · DNI ${data.dni}`);
+
+  } else {
+    setSemaforo("err", "No encontrado", data.message || "Error desconocido");
+  }
+}
+
+// ── Semáforo ─────────────────────────────────────────────────
+function setSemaforo(tipo, nombre, sub) {
+  const sem  = document.getElementById("semaforo");
+  const dot  = document.getElementById("sem-dot");
+  const nom  = document.getElementById("sem-nombre");
+  const subEl = document.getElementById("sem-sub");
+
+  sem.className  = `semaforo ${tipo}`;
+  nom.textContent = nombre;
+  subEl.textContent = sub;
+
+  const icons = { ok: "✓", warn: "⚠", err: "✕", idle: "🎯" };
+  dot.textContent = icons[tipo] || "🎯";
+}
+
+// ── Barra de cooldown visual ──────────────────────────────────
+function iniciarCooldownBar() {
+  const fill = document.getElementById("cooldown-fill");
+  fill.style.width = "0%";
+  fill.style.transition = "none";
+  requestAnimationFrame(() => {
+    fill.style.transition = `width ${state.cooldownMs}ms linear`;
+    fill.style.width = "100%";
+  });
+  setTimeout(() => { fill.style.width = "0%"; fill.style.transition = "none"; }, state.cooldownMs + 100);
+}
+
+// ════════════════════════════════════════════════════════════
+//  LISTA DE PRESENTES
+// ════════════════════════════════════════════════════════════
+function agregarPresente(nombre, dni) {
+  // Sin duplicados
+  if (state.presentes.find(p => p.dni === dni)) return;
+
+  state.presentes.unshift({ nombre, dni });
+  renderPresentes();
+}
+
+function renderPresentes() {
+  const list    = document.getElementById("presentes-list");
+  const counter = document.getElementById("counter");
+  const total   = state.presentes.length;
+
+  counter.textContent = total;
+
+  if (total === 0) {
+    list.innerHTML = '<div class="empty-state">Aún no hay presentes registrados</div>';
+    return;
+  }
+
+  list.innerHTML = state.presentes.map(p => {
+    const inicial = p.nombre.trim().charAt(0).toUpperCase();
+    return `
+      <div class="presente-item">
+        <div class="presente-avatar">${inicial}</div>
+        <span class="presente-nombre">${p.nombre}</span>
+        <span class="presente-dni">${p.dni}</span>
+      </div>`;
+  }).join("");
+}
+
+// ════════════════════════════════════════════════════════════
+//  UTILIDADES
+// ════════════════════════════════════════════════════════════
+function formatFechaDisplay(isoStr) {
+  if (!isoStr) return "";
+  const [yyyy, mm, dd] = isoStr.split("-");
+  return `${dd}/${mm}/${yyyy}`;
+}
+</script>
+</body>
+</html>
