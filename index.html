@@ -145,6 +145,12 @@ select:focus,input[type="date"]:focus{border-color:var(--accent)}
 .gafete-body{flex:1;display:flex;align-items:center;padding:7px 10px;gap:8px;background:#fff}
 .gafete-img-box{width:80px;height:80px;flex-shrink:0;border:1.5px solid #ddd;border-radius:5px;box-shadow:2px 2px 5px rgba(0,0,0,.12);overflow:hidden;background:#f5f5f5;display:flex;align-items:center;justify-content:center}
 .gafete-img-box img{width:100%;height:100%;object-fit:cover}
+.gafete-qr-wrap{width:86px;height:86px;flex-shrink:0;border:1.5px solid #ddd;border-radius:5px;box-shadow:2px 2px 6px rgba(0,0,0,.15);overflow:hidden;background:#fff;display:flex;align-items:center;justify-content:center}
+.gafete-foto-wrap{width:86px;height:86px;flex-shrink:0;border:1.5px solid #ddd;border-radius:5px;box-shadow:2px 2px 6px rgba(0,0,0,.15);overflow:hidden;background:#f5f5f5;display:flex;align-items:center;justify-content:center}
+.gafete-qr{width:100%;height:100%;object-fit:contain}
+.gafete-foto{width:100%;height:100%;object-fit:cover}
+.gafete-foto-placeholder{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:28px;color:#ccc}
+.gafete-logo-placeholder{width:36px;height:36px;border-radius:4px;background:rgba(255,255,255,.3);flex-shrink:0}
 .gafete-img-ph{font-size:26px;color:#ccc}
 .gafete-info{flex:1;display:flex;flex-direction:column;justify-content:center;gap:3px;overflow:hidden;min-width:0}
 .gafete-nombre{font-size:10px;font-weight:800;color:#1a1814;line-height:1.25;text-transform:uppercase}
@@ -879,7 +885,7 @@ async function generarInformeMeses() {
     const res  = await fetch(url,{redirect:"follow"});
     const data = await res.json();
     if (data.status !== "ok") throw new Error(data.message);
-    mostrarInformeMeses(data, curso, modalidad, materia);
+    await mostrarInformeMeses(data, curso, modalidad, materia);
   } catch(e) { alert("Error: "+e.message); }
   finally { btn.textContent="📅 Informe por meses"; btn.disabled=false; }
 }
@@ -895,16 +901,25 @@ async function generarInformeTrimestres() {
     const res  = await fetch(url,{redirect:"follow"});
     const data = await res.json();
     if (data.status !== "ok") throw new Error(data.message);
-    mostrarInformePeriodos(data, curso, modalidad, materia);
+    await mostrarInformePeriodos(data, curso, modalidad, materia);
   } catch(e) { alert("Error: "+e.message); }
   finally { btn.textContent="📊 Informe por períodos"; btn.disabled=false; }
 }
 
-function encabezadoInforme(logoUrl, institucion, localidad, subtitulo, curso, modalidad, materia, colorPpal, docente) {
+async function encabezadoInforme(logoUrl, institucion, localidad, subtitulo, curso, modalidad, materia, colorPpal, docente) {
   const color = colorPpal || "#333333";
+  // Cargar logo via proxy para evitar bloqueo CORS en la ventana de impresión
+  let logoSrc = "";
+  if (logoUrl) {
+    const b64 = await cargarImgBase64(logoUrl);
+    logoSrc = b64 || logoUrl;
+  }
+  const logoHtml = logoSrc
+    ? `<img class="informe-logo" src="${logoSrc}">`
+    : `<div style="width:56px;height:56px;flex-shrink:0;background:#f0f0f0;border-radius:4px;border:1px solid #ddd"></div>`;
   return `
   <div class="informe-encabezado">
-    ${logoUrl ? `<img class="informe-logo" src="${logoUrl}" onerror="this.style.display='none'">` : `<div style="width:56px;height:56px;flex-shrink:0;background:#f0f0f0;border-radius:4px;border:1px solid #ddd"></div>`}
+    ${logoHtml}
     <div class="informe-inst-data">
       <h2>${institucion||"Institución"}</h2>
       <p>${localidad||""}</p>
@@ -917,7 +932,7 @@ function encabezadoInforme(logoUrl, institucion, localidad, subtitulo, curso, mo
   <div class="informe-titulo" style="border-bottom:2px solid ${color};padding-bottom:6px">${subtitulo}</div>`;
 }
 
-function mostrarInformeMeses(data, curso, modalidad, materia) {
+async function mostrarInformeMeses(data, curso, modalidad, materia) {
   const {alumnos, meses, logoUrl, institucion, localidad} = data;
   const mesesLabel = meses.map(m => {
     const nombres = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
@@ -925,7 +940,7 @@ function mostrarInformeMeses(data, curso, modalidad, materia) {
     return nombres[parseInt(m2)-1]+" "+y;
   });
 
-  let html = encabezadoInforme(logoUrl, institucion, localidad,
+  let html = await encabezadoInforme(logoUrl, institucion, localidad,
     "Informe de inasistencias por mes — " + new Date().getFullYear(),
     curso, modalidad, materia, data.colorPpal, data.docente);
 
@@ -957,13 +972,13 @@ function mostrarInformeMeses(data, curso, modalidad, materia) {
   document.getElementById("inf-preview").style.display = "block";
 }
 
-function mostrarInformePeriodos(data, curso, modalidad, materia) {
+async function mostrarInformePeriodos(data, curso, modalidad, materia) {
   const {alumnos, periodos, tipoPeriodo, logoUrl, institucion, localidad} = data;
   const nomPeriodo = tipoPeriodo==="cuatrimestral" ? ["1° Cuatrimestre","2° Cuatrimestre"] :
                     tipoPeriodo==="anual"          ? ["Año completo"] :
                     ["1° Trimestre","2° Trimestre","3° Trimestre"];
 
-  let html = encabezadoInforme(logoUrl, institucion, localidad,
+  let html = await encabezadoInforme(logoUrl, institucion, localidad,
     `Informe de asistencia por ${tipoPeriodo} — ${new Date().getFullYear()}`,
     curso, modalidad, materia, data.colorPpal, data.docente);
 
@@ -1090,31 +1105,54 @@ function renderGafetes() {
         <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2);cursor:pointer">
           <input type="checkbox" class="gafete-check" data-idx="${i}" checked style="accent-color:var(--accent)"> ZIP
         </label>
-        <button class="gafete-action-btn" onclick="exportarPNG(${i})">⬇ PNG</button>
+        <button class="gafete-action-btn" onclick="exportarPNG(${i})">&#11015; PNG</button>
       </div>
       ${buildGafete(g,i)}
     </div>`).join("");
 }
 
 function buildGafete(g, idx) {
-  const logo = g.logoUrl ? `<img class="gafete-logo" src="${g.logoUrl}" onerror="this.style.display='none'">` : `<div class="gafete-logo-ph"></div>`;
-  const foto = g.fotoUrl ? `<img style="width:100%;height:100%;object-fit:cover" src="${g.fotoUrl}" onerror="this.parentElement.innerHTML='<div class=gafete-img-ph>👤</div>'">` : `<div class="gafete-img-ph">👤</div>`;
-  const qr   = g.qrUrl   ? `<img style="width:100%;height:100%;object-fit:contain" src="${g.qrUrl}">` : "";
-  return `<div class="gafete" id="gafete-${idx}">
-    <div class="gafete-header" style="background:${g.colorPpal}">${logo}
+  const logoUrl = normalizarUrlDrive(g.logoUrl);
+  const fotoUrl = normalizarUrlDrive(g.fotoUrl);
+
+  const logo = logoUrl
+    ? `<img class="gafete-logo" src="${logoUrl}" onerror="this.style.display='none'" alt="logo">`
+    : `<div class="gafete-logo-placeholder"></div>`;
+
+  const foto = fotoUrl
+    ? `<img class="gafete-foto" src="${fotoUrl}" onerror="this.parentElement.innerHTML='<div class=gafete-foto-placeholder>👤</div>'" alt="foto">`
+    : `<div class="gafete-foto-placeholder">👤</div>`;
+
+  const qr = g.qrUrl
+    ? `<img class="gafete-qr" src="${g.qrUrl}" alt="QR" onerror="this.style.opacity='0.3'">`
+    : `<div style="font-size:10px;color:#aaa;text-align:center">Sin QR</div>`;
+
+  return `<div class="gafete" id="gafete-${idx}" data-idx="${idx}">
+    <!-- Header -->
+    <div class="gafete-header" style="background:${g.colorPpal}">
+      ${logo}
       <div class="gafete-inst-info">
-        <div class="gafete-inst-name">${g.institucion||""}</div>
-        <div class="gafete-inst-loc">${g.localidad||""}</div>
+        <div class="gafete-inst-name">${g.institucion || "Institución"}</div>
+        <div class="gafete-inst-loc">${g.localidad || ""}</div>
       </div>
     </div>
+
+    <!-- Body -->
     <div class="gafete-body">
-      <div class="gafete-img-box">${qr}</div>
+      <!-- QR -->
+      <div class="gafete-qr-wrap">${qr}</div>
+
+      <!-- Info central -->
       <div class="gafete-info">
         <div class="gafete-nombre">${g.nombre}</div>
         <div class="gafete-dni">DNI: ${g.dni}</div>
       </div>
-      <div class="gafete-img-box">${foto}</div>
+
+      <!-- Foto -->
+      <div class="gafete-foto-wrap">${foto}</div>
     </div>
+
+    <!-- Footer -->
     <div class="gafete-footer" style="background:${g.colorSec}">
       <span class="gafete-curso-badge">Curso: ${g.curso}</span>
       <span class="gafete-modal-text">${g.modalidad}</span>
@@ -1122,19 +1160,22 @@ function buildGafete(g, idx) {
   </div>`;
 }
 
-// ── Proxy base64 ─────────────────────────────────────────────
+// ── Proxy base64 y captura Canvas nativa ──────────────────
+const imgCache = {};
+
 async function cargarImgBase64(url) {
   if (!url || url.startsWith("data:")) return url;
-  if (app.imgCache[url]) return app.imgCache[url];
+  if (imgCache[url]) return imgCache[url];
   try {
-    const res  = await fetch(`${ENDPOINT_URL}?action=proxyImg&url=${encodeURIComponent(url)}`,{redirect:"follow"});
+    const proxyUrl = `${ENDPOINT_URL}?action=proxyImg&url=${encodeURIComponent(url)}`;
+    const res  = await fetch(proxyUrl, { redirect: "follow" });
     const data = await res.json();
-    if (data.status==="ok"&&data.b64) {
-      const b64 = `data:${data.mime};base64,${data.b64}`;
-      app.imgCache[url] = b64;
-      return b64;
+    if (data.status === "ok" && data.b64) {
+      const dataUrl = `data:${data.mime};base64,${data.b64}`;
+      imgCache[url] = dataUrl;
+      return dataUrl;
     }
-  } catch(e) { console.warn(e); }
+  } catch(e) { console.warn("proxyImg error:", url, e); }
   return url;
 }
 
@@ -1144,145 +1185,187 @@ async function capturarGafete(el) {
   const H = el.offsetHeight;
 
   // Leer datos del DOM
-  const header   = el.querySelector(".gafete-header");
-  const footer   = el.querySelector(".gafete-footer");
-  const colorP   = header?.style.background || "#3d5a99";
-  const colorS   = footer?.style.background || "#7ec8e3";
-  const nombre   = el.querySelector(".gafete-nombre")?.textContent?.trim() || "";
-  const dniTxt   = el.querySelector(".gafete-dni")?.textContent?.trim()    || "";
-  const instName = el.querySelector(".gafete-inst-name")?.textContent?.trim() || "";
-  const instLoc  = el.querySelector(".gafete-inst-loc")?.textContent?.trim()  || "";
-  const cursoTxt = el.querySelector(".gafete-curso-badge")?.textContent?.trim() || "";
-  const modalTxt = el.querySelector(".gafete-modal-text")?.textContent?.trim()  || "";
+  const header    = el.querySelector(".gafete-header");
+  const footer    = el.querySelector(".gafete-footer");
+  const colorPpal = header?.style.background || "#3d5a99";
+  const colorSec  = footer?.style.background || "#7ec8e3";
+  const nombre    = el.querySelector(".gafete-nombre")?.textContent?.trim() || "";
+  const dniTxt    = el.querySelector(".gafete-dni")?.textContent?.trim()    || "";
+  const instName  = el.querySelector(".gafete-inst-name")?.textContent?.trim() || "";
+  const instLoc   = el.querySelector(".gafete-inst-loc")?.textContent?.trim()  || "";
+  const cursoTxt  = el.querySelector(".gafete-curso-badge")?.textContent?.trim() || "";
+  const modalTxt  = el.querySelector(".gafete-modal-text")?.textContent?.trim()  || "";
 
-  const logoEl = el.querySelector(".gafete-header img");
-  const imgBoxes = [...el.querySelectorAll(".gafete-img-box img")];
-  const qrEl   = imgBoxes[0] || null;
-  const fotoEl = imgBoxes[1] || null;
+  // URLs de imágenes
+  const logoSrc = el.querySelector(".gafete-logo")?.getAttribute("src") || "";
+  const fotoSrc = el.querySelector(".gafete-foto")?.getAttribute("src") || "";
+  const qrSrc   = el.querySelector(".gafete-qr")?.getAttribute("src")   || "";
 
-  const [logoB64, qrB64, fotoB64] = await Promise.all([
-    cargarImgBase64(logoEl?.getAttribute("src") || ""),
-    cargarImgBase64(qrEl?.getAttribute("src")   || ""),
-    cargarImgBase64(fotoEl?.getAttribute("src") || ""),
+  // Descargar imágenes via proxy como base64
+  const [logoB64, fotoB64, qrB64] = await Promise.all([
+    cargarImgBase64(logoSrc),
+    cargarImgBase64(fotoSrc),
+    cargarImgBase64(qrSrc),
   ]);
 
+  // Cargar como objetos Image
   function loadImg(src) {
     return new Promise(res => {
-      if (!src || !src.startsWith("data:")) return res(null);
-      const i = new Image(); i.onload=()=>res(i); i.onerror=()=>res(null); i.src=src;
+      if (!src) return res(null);
+      const i = new Image();
+      i.onload  = () => res(i);
+      i.onerror = () => res(null);
+      i.src = src;
     });
   }
-  const [logoImg, qrImg, fotoImg] = await Promise.all([loadImg(logoB64), loadImg(qrB64), loadImg(fotoB64)]);
+  const [logoImg, fotoImg, qrImg] = await Promise.all([
+    loadImg(logoB64), loadImg(fotoB64), loadImg(qrB64)
+  ]);
 
+  // Crear canvas
   const canvas = document.createElement("canvas");
   canvas.width  = W * SCALE;
   canvas.height = H * SCALE;
   const ctx = canvas.getContext("2d");
   ctx.scale(SCALE, SCALE);
 
-  function rr(x,y,w,h,r) {
+  // Helpers
+  function roundRect(x, y, w, h, r) {
     ctx.beginPath();
-    ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y);
-    ctx.quadraticCurveTo(x+w,y,x+w,y+r);
-    ctx.lineTo(x+w,y+h-r);
-    ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
-    ctx.lineTo(x+r,y+h);
-    ctx.quadraticCurveTo(x,y+h,x,y+h-r);
-    ctx.lineTo(x,y+r);
-    ctx.quadraticCurveTo(x,y,x+r,y);
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
     ctx.closePath();
   }
 
-  const headerH=50, footerH=26;
-  const pad=10, imgSz=78;
-  const bodyY=headerH, bodyH=H-headerH-footerH;
-  const imgY=bodyY+(bodyH-imgSz)/2;
+  const headerH = 52;
+  const footerH = 28;
+  const pad     = 12;
+  const imgSz   = 86;
+  const bodyY   = headerH;
+  const bodyH   = H - headerH - footerH;
+  const imgY    = bodyY + (bodyH - imgSz) / 2;
 
-  // Fondo blanco
-  ctx.fillStyle="#ffffff"; rr(0,0,W,H,10); ctx.fill();
+  // Fondo blanco con bordes redondeados
+  ctx.fillStyle = "#ffffff";
+  roundRect(0, 0, W, H, 10);
+  ctx.fill();
 
   // Header
-  ctx.fillStyle=colorP; rr(0,0,W,headerH,10); ctx.fill();
-  ctx.fillStyle=colorP; ctx.fillRect(0,8,W,headerH-8);
+  ctx.fillStyle = colorPpal;
+  roundRect(0, 0, W, headerH, 10);
+  ctx.fill();
+  ctx.fillStyle = colorPpal;
+  ctx.fillRect(0, 10, W, headerH - 10);
 
-  // Logo
+  // Logo en header
   if (logoImg) {
-    const ls=32, lx=pad, ly=(headerH-ls)/2;
-    ctx.save(); rr(lx,ly,ls,ls,4); ctx.clip();
-    ctx.drawImage(logoImg,lx,ly,ls,ls); ctx.restore();
+    const lSz = 34, lX = pad, lY = (headerH - lSz) / 2;
+    ctx.save();
+    roundRect(lX, lY, lSz, lSz, 4);
+    ctx.clip();
+    ctx.drawImage(logoImg, lX, lY, lSz, lSz);
+    ctx.restore();
   }
 
   // Textos header
-  ctx.fillStyle="#ffffff";
-  ctx.font="bold 8px Arial,sans-serif";
-  const maxW=W-pad*2-38;
-  let instTxt=instName;
-  while(ctx.measureText(instTxt).width>maxW&&instTxt.length>0) instTxt=instTxt.slice(0,-1);
-  if(instTxt!==instName) instTxt=instTxt.slice(0,-1)+"…";
-  ctx.fillText(instTxt, pad+38, headerH*0.36);
-  ctx.font="7px Arial,sans-serif"; ctx.globalAlpha=.85;
-  ctx.fillText(instLoc, pad+38, headerH*0.66); ctx.globalAlpha=1;
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 8px Arial, sans-serif";
+  ctx.fillText(instName.substring(0, 45), pad + 42, headerH * 0.36);
+  ctx.font = "7px Arial, sans-serif";
+  ctx.globalAlpha = 0.85;
+  ctx.fillText(instLoc, pad + 42, headerH * 0.65);
+  ctx.globalAlpha = 1;
 
-  // Body
-  ctx.fillStyle="#ffffff"; ctx.fillRect(0,bodyY,W,bodyH);
+  // Body blanco
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, bodyY, W, bodyH);
 
-  function drawBox(x,y,sz,img,cover) {
+  // Función para dibujar imagen con borde y sombra
+  function drawBox(x, y, sz, img) {
     ctx.save();
-    ctx.shadowColor="rgba(0,0,0,0.13)"; ctx.shadowBlur=4;
-    ctx.shadowOffsetX=1.5; ctx.shadowOffsetY=1.5;
-    ctx.fillStyle="#ffffff"; rr(x,y,sz,sz,5); ctx.fill();
+    ctx.shadowColor   = "rgba(0,0,0,0.15)";
+    ctx.shadowBlur    = 5;
+    ctx.shadowOffsetX = 2;
+    ctx.shadowOffsetY = 2;
+    ctx.fillStyle = "#ffffff";
+    roundRect(x, y, sz, sz, 5);
+    ctx.fill();
     ctx.restore();
-    if(img) {
-      ctx.save(); rr(x+1.5,y+1.5,sz-3,sz-3,4); ctx.clip();
-      if(cover) {
-        const aspect=img.width/img.height;
-        let sw=sz-3,sh=sz-3,sx=x+1.5,sy=y+1.5;
-        if(aspect>1){sh=(sz-3)/aspect;sy+=((sz-3)-sh)/2;}
-        else{sw=(sz-3)*aspect;sx+=((sz-3)-sw)/2;}
-        ctx.drawImage(img,sx,sy,sw,sh);
-      } else { ctx.drawImage(img,x+1.5,y+1.5,sz-3,sz-3); }
+    if (img) {
+      ctx.save();
+      roundRect(x + 1.5, y + 1.5, sz - 3, sz - 3, 4);
+      ctx.clip();
+      ctx.drawImage(img, x + 1.5, y + 1.5, sz - 3, sz - 3);
       ctx.restore();
     }
-    ctx.strokeStyle="#dddddd"; ctx.lineWidth=1.5;
-    rr(x,y,sz,sz,5); ctx.stroke();
+    ctx.strokeStyle = "#dddddd";
+    ctx.lineWidth = 1.5;
+    roundRect(x, y, sz, sz, 5);
+    ctx.stroke();
   }
 
-  drawBox(pad, imgY, imgSz, qrImg, false);
-  drawBox(W-pad-imgSz, imgY, imgSz, fotoImg, true);
+  drawBox(pad, imgY, imgSz, qrImg);
+  drawBox(W - pad - imgSz, imgY, imgSz, fotoImg);
 
-  // Nombre
-  const infoX=pad+imgSz+8;
-  const infoW=W-infoX-imgSz-pad-8;
-  ctx.fillStyle="#1a1814"; ctx.font="bold 10px Arial,sans-serif";
-  const words=nombre.split(" "); let line="", ly2=bodyY+bodyH*0.36;
-  for(const w of words){
-    const t=line?line+" "+w:w;
-    if(ctx.measureText(t).width>infoW&&line){ctx.fillText(line,infoX,ly2);line=w;ly2+=13;}
-    else line=t;
+  // Nombre (con wrapping)
+  const infoX = pad + imgSz + 10;
+  const infoW = W - infoX - imgSz - pad - 10;
+  ctx.fillStyle = "#1a1814";
+  ctx.font      = "bold 11px Arial, sans-serif";
+  const words   = nombre.split(" ");
+  let line = "", lineY = bodyY + bodyH * 0.37;
+  for (const w of words) {
+    const test = line ? line + " " + w : w;
+    if (ctx.measureText(test).width > infoW && line) {
+      ctx.fillText(line, infoX, lineY);
+      line = w; lineY += 14;
+    } else { line = test; }
   }
-  if(line) ctx.fillText(line,infoX,ly2);
-  ctx.font="8.5px Arial,sans-serif"; ctx.fillStyle="#666";
-  ctx.fillText(dniTxt,infoX,ly2+15);
+  if (line) ctx.fillText(line, infoX, lineY);
+
+  ctx.font      = "9px Arial, sans-serif";
+  ctx.fillStyle = "#666666";
+  ctx.fillText(dniTxt, infoX, lineY + 16);
 
   // Footer
-  const fy=H-footerH;
-  ctx.fillStyle=colorS; ctx.fillRect(0,fy,W,footerH);
-  rr(0,fy,W,footerH,10); ctx.fill();
-  ctx.fillStyle=colorS; ctx.fillRect(0,fy,W,footerH-8);
+  const footerY = H - footerH;
+  ctx.fillStyle = colorSec;
+  ctx.fillRect(0, footerY, W, footerH);
+  roundRect(0, footerY, W, footerH, 10);
+  ctx.fill();
+  ctx.fillStyle = colorSec;
+  ctx.fillRect(0, footerY, W, footerH - 10);
 
-  ctx.fillStyle="rgba(255,255,255,0.25)"; rr(pad,fy+5,68,16,8); ctx.fill();
-  ctx.fillStyle="#ffffff"; ctx.font="bold 7px Arial,sans-serif";
-  ctx.fillText(cursoTxt,pad+5,fy+16);
+  // Badge curso
+  ctx.fillStyle = "rgba(255,255,255,0.25)";
+  roundRect(pad, footerY + 6, 72, 16, 8);
+  ctx.fill();
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 7px Arial, sans-serif";
+  ctx.fillText(cursoTxt, pad + 6, footerY + 17);
 
-  ctx.textAlign="right"; ctx.font="bold 6px Arial,sans-serif";
-  ctx.fillStyle="rgba(255,255,255,0.9)";
-  const mw2=W*0.42; const mwords=modalTxt.split(" ");
-  let ml=""; const mlines=[];
-  for(const w of mwords){const t=ml?ml+" "+w:w;if(ctx.measureText(t).width>mw2&&ml){mlines.push(ml);ml=w;}else ml=t;}
-  if(ml) mlines.push(ml);
-  const my0=mlines.length>1?fy+10:fy+16;
-  mlines.forEach((l,i)=>ctx.fillText(l,W-pad,my0+i*8));
-  ctx.textAlign="left";
+  // Modalidad (derecha)
+  ctx.textAlign = "right";
+  ctx.font      = "bold 6.5px Arial, sans-serif";
+  ctx.fillStyle = "rgba(255,255,255,0.9)";
+  const mwords  = modalTxt.split(" ");
+  let ml = ""; const mlines = [];
+  for (const w of mwords) {
+    const t = ml ? ml + " " + w : w;
+    if (ctx.measureText(t).width > W * 0.42 && ml) { mlines.push(ml); ml = w; }
+    else ml = t;
+  }
+  if (ml) mlines.push(ml);
+  const mY0 = mlines.length > 1 ? footerY + 11 : footerY + 17;
+  mlines.forEach((l, i) => ctx.fillText(l, W - pad, mY0 + i * 9));
+  ctx.textAlign = "left";
 
   return canvas;
 }
@@ -1353,21 +1436,16 @@ async function exportarPDF() {
     const A4W=210,A4H=297,GW=90,GH=60,COLS=2,ROWS=4,PPG=COLS*ROWS;
     const MX=(A4W-COLS*GW)/2, MY=10;
     const GAP=(A4H-MY*2-ROWS*GH)/(ROWS-1);
-    const tmp = document.createElement("div");
-    tmp.style.cssText="position:fixed;left:-9999px;top:0;pointer-events:none";
-    document.body.appendChild(tmp);
     const canvases=[];
     for (let i=0;i<app.gafVisibles.length;i++) {
       btn.textContent=`⏳ ${i+1}/${app.gafVisibles.length}`;
-      const w=document.createElement("div");
-      w.innerHTML=buildGafete(app.gafVisibles[i],`pdf_${i}`);
-      tmp.appendChild(w);
-      const el=w.querySelector(".gafete");
-      const cvs=await capturarGafete(el);
-      canvases.push(cvs);
-      w.remove();
+      // Usar gafete ya renderizado en el DOM (tiene src en base64)
+      const el = document.getElementById(`gafete-${i}`);
+      if (el) {
+        const cvs=await capturarGafete(el);
+        canvases.push(cvs);
+      }
     }
-    tmp.remove();
     canvases.forEach((cvs,i) => {
       const pos=i%PPG;
       if (pos===0&&i>0) pdf.addPage();
