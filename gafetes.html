@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Generador de Gafetes</title>
+
+<!--
+  ╔══════════════════════════════════════════════════════════════╗
+  ║  GENERADOR DE GAFETES — Sistema Asistencia QR               ║
+  ║  Reemplazar ENDPOINT_URL con la URL de tu deploy de GAS     ║
+  ╚══════════════════════════════════════════════════════════════╝
+-->
+
+<!-- jsPDF para exportar PDF -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<!-- html2canvas para capturar gafetes como imagen -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<!-- JSZip para exportar ZIP de PNGs -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+<style>
+/* ── RESET & BASE ─────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:       #f0ede8;
+  --surface:  #ffffff;
+  --border:   #d4cfc8;
+  --text:     #1a1814;
+  --text2:    #6b6760;
+  --accent:   #3d5a99;
+  --radius:   10px;
+  --shadow:   0 2px 8px rgba(0,0,0,0.10);
+}
+
+body {
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+/* ── HEADER ──────────────────────────────────────── */
+.app-header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 16px 24px;
+  display: flex; align-items: center; gap: 14px;
+  position: sticky; top: 0; z-index: 100;
+  box-shadow: var(--shadow);
+}
+.app-header-icon {
+  width: 40px; height: 40px;
+  background: var(--accent);
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; color: #fff;
+}
+.app-header h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
+.app-header p  { font-size: 13px; color: var(--text2); }
+
+/* ── CONTROLS ────────────────────────────────────── */
+.controls {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 16px 24px;
+  display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end;
+}
+.ctrl-group { display: flex; flex-direction: column; gap: 5px; }
+.ctrl-group label { font-size: 12px; font-weight: 600; color: var(--text2); letter-spacing: 0.5px; text-transform: uppercase; }
+select {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 14px;
+  padding: 9px 14px;
+  min-width: 180px;
+  outline: none;
+  cursor: pointer;
+  transition: border-color .2s;
+}
+select:focus { border-color: var(--accent); }
+
+.btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn {
+  padding: 9px 18px;
+  border: none; border-radius: 8px;
+  font-size: 13px; font-weight: 600;
+  cursor: pointer;
+  display: flex; align-items: center; gap: 7px;
+  transition: all .2s;
+  white-space: nowrap;
+}
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover:not(:disabled) { filter: brightness(1.1); }
+.btn-outline { background: transparent; border: 1.5px solid var(--border); color: var(--text); }
+.btn-outline:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.btn-green  { background: #16a34a; color: #fff; }
+.btn-green:hover:not(:disabled)  { filter: brightness(1.1); }
+
+/* ── STATS BAR ───────────────────────────────────── */
+.stats-bar {
+  padding: 10px 24px;
+  font-size: 13px; color: var(--text2);
+  display: flex; align-items: center; gap: 16px;
+}
+.stats-badge {
+  background: var(--accent);
+  color: #fff; font-size: 12px; font-weight: 700;
+  padding: 2px 9px; border-radius: 20px;
+}
+
+/* ── LOADING ─────────────────────────────────────── */
+#loading {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 60px 20px; gap: 14px;
+}
+.spinner {
+  width: 40px; height: 40px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── GRID DE GAFETES (pantalla) ──────────────────── */
+#gafetes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 20px;
+  padding: 20px 24px;
+}
+
+/* ── GAFETE CARD ─────────────────────────────────── */
+/*
+  Tamaño real: 9cm x 6cm → a 96dpi = 340px x 227px
+  En pantalla lo mostramos a escala 1:1 para fidelidad
+*/
+.gafete-wrap {
+  display: flex; flex-direction: column; gap: 8px;
+}
+.gafete-actions {
+  display: flex; gap: 6px; justify-content: flex-end;
+}
+.gafete-action-btn {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 11px; font-weight: 600;
+  cursor: pointer;
+  background: var(--surface);
+  color: var(--text2);
+  transition: all .15s;
+}
+.gafete-action-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+.gafete {
+  width: 340px;        /* 9cm @ 96dpi ≈ 340px */
+  height: 227px;       /* 6cm @ 96dpi ≈ 227px */
+  border-radius: 10px;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 3px 12px rgba(0,0,0,0.18);
+  font-family: 'DM Sans', Arial, sans-serif;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+/* Header del gafete */
+.gafete-header {
+  display: flex; align-items: center;
+  padding: 7px 10px;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.gafete-logo {
+  width: 36px; height: 36px;
+  object-fit: contain;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.gafete-logo-placeholder {
+  width: 36px; height: 36px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.3);
+  flex-shrink: 0;
+}
+.gafete-inst-info { flex: 1; overflow: hidden; }
+.gafete-inst-name {
+  font-size: 8.5px; font-weight: 700;
+  color: #fff;
+  line-height: 1.2;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.gafete-inst-loc {
+  font-size: 7.5px; color: rgba(255,255,255,0.85);
+  margin-top: 1px;
+}
+
+/* Body del gafete */
+.gafete-body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  gap: 10px;
+  background: #fff;
+}
+
+/* QR */
+.gafete-qr-wrap {
+  width: 86px; height: 86px;   /* ~3cm × 3cm */
+  flex-shrink: 0;
+  border: 1.5px solid #ddd;
+  border-radius: 5px;
+  box-shadow: 2px 2px 6px rgba(0,0,0,0.15);
+  overflow: hidden;
+  background: #fff;
+  display: flex; align-items: center; justify-content: center;
+}
+.gafete-qr {
+  width: 100%; height: 100%;
+  object-fit: contain;
+}
+
+/* Foto */
+.gafete-foto-wrap {
+  width: 86px; height: 86px;   /* ~3cm × 3cm */
+  flex-shrink: 0;
+  border: 1.5px solid #ddd;
+  border-radius: 5px;
+  box-shadow: 2px 2px 6px rgba(0,0,0,0.15);
+  overflow: hidden;
+  background: #f5f5f5;
+  display: flex; align-items: center; justify-content: center;
+}
+.gafete-foto {
+  width: 100%; height: 100%;
+  object-fit: cover;
+}
+.gafete-foto-placeholder {
+  width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 28px; color: #ccc;
+}
+
+/* Info central */
+.gafete-info {
+  flex: 1;
+  display: flex; flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  overflow: hidden;
+  min-width: 0;
+}
+.gafete-nombre {
+  font-size: 11px; font-weight: 800;
+  color: #1a1814;
+  line-height: 1.25;
+  text-transform: uppercase;
+  letter-spacing: 0.2px;
+}
+.gafete-dni {
+  font-size: 9px; color: #666;
+  font-weight: 500;
+}
+
+/* Footer del gafete */
+.gafete-footer {
+  padding: 5px 12px;
+  display: flex; align-items: center; justify-content: space-between;
+  flex-shrink: 0;
+}
+.gafete-curso-badge {
+  font-size: 8px; font-weight: 700;
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: rgba(255,255,255,0.25);
+  letter-spacing: 0.3px;
+}
+.gafete-modal-text {
+  font-size: 7px; font-weight: 600;
+  color: rgba(255,255,255,0.9);
+  text-align: right;
+  max-width: 160px;
+  line-height: 1.2;
+}
+
+/* ── ÁREA DE IMPRESIÓN ───────────────────────────── */
+@media print {
+  body * { visibility: hidden; }
+  #print-area, #print-area * { visibility: visible; }
+  #print-area {
+    position: fixed; inset: 0;
+    display: block !important;
+  }
+  .print-page {
+    width: 210mm; /* A4 */
+    page-break-after: always;
+    display: grid;
+    grid-template-columns: repeat(2, 90mm);
+    grid-template-rows: repeat(4, 60mm);
+    gap: 5mm;
+    padding: 10mm;
+  }
+  .print-page .gafete {
+    width: 90mm !important;
+    height: 60mm !important;
+    box-shadow: none !important;
+    break-inside: avoid;
+    border-radius: 6px;
+  }
+  .print-page .gafete-qr-wrap,
+  .print-page .gafete-foto-wrap {
+    width: 56px !important;
+    height: 56px !important;
+  }
+  .app-header, .controls, .stats-bar,
+  #gafetes-grid, .gafete-wrap, .gafete-actions { display: none !important; }
+}
+
+/* ── EMPTY STATE ─────────────────────────────────── */
+.empty-state {
+  grid-column: 1/-1;
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text2);
+}
+.empty-state p { font-size: 15px; margin-top: 8px; }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<!-- ══ HEADER ═══════════════════════════════════════════════ -->
+<div class="app-header">
+  <div class="app-header-icon">🪪</div>
+  <div>
+    <h1>Generador de Gafetes</h1>
+    <p id="header-sub">Cargando configuración...</p>
+  </div>
+</div>
+
+<!-- ══ CONTROLES ════════════════════════════════════════════ -->
+<div class="controls">
+  <div class="ctrl-group">
+    <label>Curso</label>
+    <select id="sel-curso" onchange="onFiltroChange()">
+      <option value="">Todos los cursos</option>
+    </select>
+  </div>
+  <div class="ctrl-group">
+    <label>Modalidad</label>
+    <select id="sel-modalidad" onchange="onFiltroChange()">
+      <option value="">Todas las modalidades</option>
+    </select>
+  </div>
+  <div class="ctrl-group" style="justify-content:flex-end">
+    <label style="opacity:0">-</label>
+    <div class="btn-group">
+      <button class="btn btn-primary" id="btn-cargar" onclick="cargarGafetes()">
+        🔄 Cargar / actualizar
+      </button>
+      <button class="btn btn-outline" id="btn-imprimir" onclick="imprimirGafetes()" disabled>
+        🖨 Imprimir
+      </button>
+      <button class="btn btn-green" id="btn-pdf" onclick="exportarPDF()" disabled>
+        ⬇ PDF
+      </button>
+      <button class="btn" style="background:#7c3aed;color:#fff" id="btn-zip" onclick="exportarZIP()" disabled>
+        🗜 PNG × todos
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ STATS BAR ═════════════════════════════════════════════ -->
+<div class="stats-bar">
+  <span id="stats-text">Seleccioná un filtro y cargá los gafetes</span>
+  <span class="stats-badge" id="stats-count" style="display:none">0</span>
+</div>
+
+<!-- ══ ÁREA VISIBLE ══════════════════════════════════════════ -->
+<div id="gafetes-grid">
+  <div class="empty-state">
+    <div style="font-size:48px">🪪</div>
+    <p>Usá los filtros y presioná "Cargar / actualizar"</p>
+  </div>
+</div>
+
+<!-- ══ ÁREA DE IMPRESIÓN (oculta, solo para print/PDF) ═══════ -->
+<div id="print-area" style="display:none"></div>
+
+<script>
+// ════════════════════════════════════════════════════════════
+//  CONFIGURACIÓN
+// ════════════════════════════════════════════════════════════
+const ENDPOINT_URL = "https://script.google.com/macros/s/AKfycbw6UaOo9tZ7rmyyhsH2iBT4on2yTubf3t-rfqHuZcF3pkXvhRD71cYHMUHSS0AoCUAeAg/exec";
+
+// ════════════════════════════════════════════════════════════
+//  ESTADO
+// ════════════════════════════════════════════════════════════
+const state = {
+  grupos:   [],   // { curso, modalidad, colorPpal, colorSec }
+  gafetes:  [],   // todos los cargados
+  visibles: [],   // filtrados
+};
+
+// ════════════════════════════════════════════════════════════
+//  INICIO
+// ════════════════════════════════════════════════════════════
+window.addEventListener("DOMContentLoaded", async () => {
+  await cargarGrupos();
+});
+
+async function cargarGrupos() {
+  try {
+    const res  = await fetch(`${ENDPOINT_URL}?action=getConfigGafetes`, { redirect: "follow" });
+    const data = await res.json();
+    if (data.status !== "ok") throw new Error(data.message);
+
+    state.grupos = data.grupos;
+    poblarFiltros();
+    document.getElementById("header-sub").textContent =
+      `${data.grupos.length} cursos/modalidades disponibles`;
+  } catch(e) {
+    document.getElementById("header-sub").textContent = "Error al conectar con el backend";
+    console.error(e);
+  }
+}
+
+function poblarFiltros() {
+  const cursos = [...new Set(state.grupos.map(g => g.curso))].sort();
+  const selC   = document.getElementById("sel-curso");
+  selC.innerHTML = '<option value="">Todos los cursos</option>';
+  cursos.forEach(c => {
+    const o = document.createElement("option");
+    o.value = c; o.textContent = c;
+    selC.appendChild(o);
+  });
+}
+
+function onFiltroChange() {
+  const curso = document.getElementById("sel-curso").value;
+  const selM  = document.getElementById("sel-modalidad");
+
+  selM.innerHTML = '<option value="">Todas las modalidades</option>';
+  const modals = state.grupos
+    .filter(g => !curso || g.curso === curso)
+    .map(g => g.modalidad);
+  [...new Set(modals)].forEach(m => {
+    const o = document.createElement("option");
+    o.value = m; o.textContent = m;
+    selM.appendChild(o);
+  });
+
+  // Re-filtrar si ya hay gafetes cargados
+  if (state.gafetes.length) aplicarFiltro();
+}
+
+// ════════════════════════════════════════════════════════════
+//  CARGAR GAFETES
+// ════════════════════════════════════════════════════════════
+async function cargarGafetes() {
+  const curso    = document.getElementById("sel-curso").value;
+  const modalidad= document.getElementById("sel-modalidad").value;
+  const grid     = document.getElementById("gafetes-grid");
+
+  grid.innerHTML = `<div id="loading" style="grid-column:1/-1;display:flex;flex-direction:column;align-items:center;gap:14px;padding:60px">
+    <div class="spinner"></div><p style="color:var(--text2);font-size:14px">Cargando gafetes...</p></div>`;
+
+  try {
+    let url = `${ENDPOINT_URL}?action=getGafetes`;
+    if (curso)     url += `&curso=${encodeURIComponent(curso)}`;
+    if (modalidad) url += `&modalidad=${encodeURIComponent(modalidad)}`;
+
+    const res  = await fetch(url, { redirect: "follow" });
+    const data = await res.json();
+    if (data.status !== "ok") throw new Error(data.message);
+
+    state.gafetes = data.gafetes;
+    aplicarFiltro();
+
+  } catch(e) {
+    grid.innerHTML = `<div class="empty-state"><p style="color:#ef4444">Error: ${e.message}</p></div>`;
+  }
+}
+
+function aplicarFiltro() {
+  const curso    = document.getElementById("sel-curso").value;
+  const modalidad= document.getElementById("sel-modalidad").value;
+
+  state.visibles = state.gafetes.filter(g =>
+    (!curso     || g.curso     === curso) &&
+    (!modalidad || g.modalidad === modalidad)
+  );
+
+  renderGrid();
+}
+
+// ════════════════════════════════════════════════════════════
+//  RENDER GRID
+// ════════════════════════════════════════════════════════════
+function renderGrid() {
+  const grid  = document.getElementById("gafetes-grid");
+  const count = state.visibles.length;
+
+  document.getElementById("stats-count").textContent = count;
+  document.getElementById("stats-count").style.display = count ? "" : "none";
+  document.getElementById("stats-text").textContent =
+    count ? `Mostrando ${count} gafete${count !== 1 ? "s" : ""}` : "Sin resultados para el filtro seleccionado";
+
+  document.getElementById("btn-imprimir").disabled = count === 0;
+  document.getElementById("btn-pdf").disabled       = count === 0;
+  document.getElementById("btn-zip").disabled       = count === 0;
+
+  if (!count) {
+    grid.innerHTML = '<div class="empty-state"><div style="font-size:48px">🔍</div><p>No hay gafetes para este filtro</p></div>';
+    return;
+  }
+
+  grid.innerHTML = state.visibles.map((g, idx) =>
+    `<div class="gafete-wrap">
+      <div class="gafete-actions" style="display:flex;align-items:center;gap:8px">
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text2);cursor:pointer;user-select:none">
+          <input type="checkbox" class="gafete-check" data-idx="${idx}" checked
+            style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer">
+          Incluir en ZIP
+        </label>
+        <button class="gafete-action-btn" onclick="exportarPNG(${idx})">⬇ PNG individual</button>
+      </div>
+      ${buildGafeteHTML(g, idx)}
+    </div>`
+  ).join("");
+}
+
+// ════════════════════════════════════════════════════════════
+//  CONSTRUIR HTML DE UN GAFETE
+// ════════════════════════════════════════════════════════════
+function buildGafeteHTML(g, idx) {
+  const logo = g.logoUrl
+    ? `<img class="gafete-logo" src="${g.logoUrl}" onerror="this.style.display='none'" alt="logo">`
+    : `<div class="gafete-logo-placeholder"></div>`;
+
+  const foto = g.fotoUrl
+    ? `<img class="gafete-foto" src="${g.fotoUrl}" onerror="this.parentElement.innerHTML='<div class=gafete-foto-placeholder>👤</div>'" alt="foto">`
+    : `<div class="gafete-foto-placeholder">👤</div>`;
+
+  const qr = g.qrUrl
+    ? `<img class="gafete-qr" src="${g.qrUrl}" alt="QR" onerror="this.style.opacity='0.3'">`
+    : `<div style="font-size:10px;color:#aaa;text-align:center">Sin QR</div>`;
+
+  return `<div class="gafete" id="gafete-${idx}" data-idx="${idx}">
+    <!-- Header -->
+    <div class="gafete-header" style="background:${g.colorPpal}">
+      ${logo}
+      <div class="gafete-inst-info">
+        <div class="gafete-inst-name">${g.institucion || "Institución"}</div>
+        <div class="gafete-inst-loc">${g.localidad || ""}</div>
+      </div>
+    </div>
+
+    <!-- Body -->
+    <div class="gafete-body">
+      <!-- QR -->
+      <div class="gafete-qr-wrap">${qr}</div>
+
+      <!-- Info central -->
+      <div class="gafete-info">
+        <div class="gafete-nombre">${g.nombre}</div>
+        <div class="gafete-dni">DNI: ${g.dni}</div>
+      </div>
+
+      <!-- Foto -->
+      <div class="gafete-foto-wrap">${foto}</div>
+    </div>
+
+    <!-- Footer -->
+    <div class="gafete-footer" style="background:${g.colorSec}">
+      <span class="gafete-curso-badge">Curso: ${g.curso}</span>
+      <span class="gafete-modal-text">${g.modalidad}</span>
+    </div>
+  </div>`;
+}
+
+// ════════════════════════════════════════════════════════════
+//  EXPORTAR PNG INDIVIDUAL
+// ════════════════════════════════════════════════════════════
+async function exportarPNG(idx) {
+  const el = document.getElementById(`gafete-${idx}`);
+  if (!el) return;
+
+  // Encontrar el botón individual dentro de gafete-actions
+  const wrap = el.closest(".gafete-wrap");
+  const btn  = wrap ? wrap.querySelector(".gafete-action-btn") : null;
+  if (btn) { btn.textContent = "Generando..."; btn.disabled = true; }
+
+  try {
+    const canvas = await capturarGafete(el);
+    const link     = document.createElement("a");
+    const nombre   = state.visibles[idx].nombre.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_]/g, "");
+    link.download  = `gafete_${nombre}.png`;
+    link.href      = canvas.toDataURL("image/png");
+    link.click();
+  } catch(e) {
+    alert("Error al generar PNG: " + e.message);
+  } finally {
+    if (btn) { btn.textContent = "⬇ PNG individual"; btn.disabled = false; }
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+//  EXPORTAR ZIP — PNG de los gafetes seleccionados
+// ════════════════════════════════════════════════════════════
+async function exportarZIP() {
+  // Obtener índices seleccionados (checkbox marcado)
+  const checks  = [...document.querySelectorAll(".gafete-check:checked")];
+  const indices = checks.map(c => parseInt(c.dataset.idx));
+
+  if (!indices.length) {
+    alert("No hay gafetes seleccionados. Marcá los checkboxes que querés incluir.");
+    return;
+  }
+
+  const btnZip = document.getElementById("btn-zip");
+  btnZip.disabled = true;
+
+  try {
+    const zip = new JSZip();
+    const carpeta = zip.folder("gafetes");
+
+    for (let i = 0; i < indices.length; i++) {
+      const idx = indices[i];
+      btnZip.textContent = `🗜 ${i + 1}/${indices.length}...`;
+
+      const el = document.getElementById(`gafete-${idx}`);
+      if (!el) continue;
+
+      const canvas  = await capturarGafete(el);
+      const blob    = await new Promise(res => canvas.toBlob(res, "image/png"));
+      const nombre  = state.visibles[idx].nombre
+        .replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_]/g, "");
+      carpeta.file(`${String(idx + 1).padStart(3,"0")}_${nombre}.png`, blob);
+    }
+
+    const zipBlob  = await zip.generateAsync({ type: "blob" });
+    const link     = document.createElement("a");
+    const curso    = document.getElementById("sel-curso").value    || "todos";
+    const modal    = document.getElementById("sel-modalidad").value || "todas";
+    link.download  = `gafetes_${curso}_${modal}.zip`;
+    link.href      = URL.createObjectURL(zipBlob);
+    link.click();
+    URL.revokeObjectURL(link.href);
+
+  } catch(e) {
+    alert("Error al generar ZIP: " + e.message);
+    console.error(e);
+  } finally {
+    btnZip.textContent = "🗜 PNG × todos";
+    btnZip.disabled    = false;
+  }
+}
+
+// ── Helper compartido: capturar un elemento .gafete a canvas ─
+async function capturarGafete(el) {
+  return html2canvas(el, {
+    scale: 3,
+    useCORS: true,
+    allowTaint: true,
+    backgroundColor: "#ffffff",
+    logging: false,
+  });
+}
+
+// ════════════════════════════════════════════════════════════
+//  IMPRIMIR (8 gafetes por hoja A4)
+// ════════════════════════════════════════════════════════════
+function imprimirGafetes() {
+  if (!state.visibles.length) return;
+
+  const printArea = document.getElementById("print-area");
+  printArea.innerHTML = "";
+
+  // Agrupar en páginas de 8
+  for (let i = 0; i < state.visibles.length; i += 8) {
+    const page  = document.createElement("div");
+    page.className = "print-page";
+    const lote  = state.visibles.slice(i, i + 8);
+    lote.forEach((g, j) => {
+      page.innerHTML += buildGafeteHTML(g, i + j);
+    });
+    printArea.appendChild(page);
+  }
+
+  printArea.style.display = "block";
+  window.print();
+  printArea.style.display = "none";
+}
+
+// ════════════════════════════════════════════════════════════
+//  EXPORTAR PDF (8 gafetes por página A4 — html2canvas + jsPDF)
+// ════════════════════════════════════════════════════════════
+async function exportarPDF() {
+  if (!state.visibles.length) return;
+
+  const btnPdf = document.getElementById("btn-pdf");
+  btnPdf.textContent = "⏳ Generando PDF...";
+  btnPdf.disabled = true;
+
+  try {
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const A4_W = 210, A4_H = 297;
+    const GAFETE_W = 90, GAFETE_H = 60;
+    const COLS = 2, ROWS = 4, PER_PAGE = COLS * ROWS;
+    const MARGIN_X = (A4_W - COLS * GAFETE_W) / 2;        // ~15mm
+    const MARGIN_Y = 10;
+    const GAP_X = 0, GAP_Y = (A4_H - MARGIN_Y * 2 - ROWS * GAFETE_H) / (ROWS - 1);
+
+    // Renderizar todos los gafetes a canvas fuera del viewport
+    const tempDiv = document.createElement("div");
+    tempDiv.style.cssText = "position:fixed;left:-9999px;top:0;pointer-events:none";
+    document.body.appendChild(tempDiv);
+
+    // Pre-generar canvas de cada gafete
+    const canvases = [];
+    for (let i = 0; i < state.visibles.length; i++) {
+      const g   = state.visibles[i];
+      const wrap = document.createElement("div");
+      wrap.innerHTML = buildGafeteHTML(g, `pdf_${i}`);
+      tempDiv.appendChild(wrap);
+
+      btnPdf.textContent = `⏳ ${i + 1}/${state.visibles.length}`;
+
+      const el  = wrap.querySelector(".gafete");
+      const cvs = await html2canvas(el, {
+        scale: 3, useCORS: true, allowTaint: true,
+        backgroundColor: "#ffffff", logging: false,
+      });
+      canvases.push(cvs);
+      wrap.remove();
+    }
+    tempDiv.remove();
+
+    // Componer páginas PDF
+    let pageIdx = 0;
+    for (let i = 0; i < canvases.length; i++) {
+      const posInPage = i % PER_PAGE;
+      if (posInPage === 0 && i > 0) { pdf.addPage(); pageIdx++; }
+
+      const col = posInPage % COLS;
+      const row = Math.floor(posInPage / COLS);
+      const x   = MARGIN_X + col * (GAFETE_W + GAP_X);
+      const y   = MARGIN_Y + row * (GAFETE_H + GAP_Y);
+
+      const imgData = canvases[i].toDataURL("image/jpeg", 0.92);
+      pdf.addImage(imgData, "JPEG", x, y, GAFETE_W, GAFETE_H);
+    }
+
+    // Nombre del archivo
+    const curso    = document.getElementById("sel-curso").value    || "todos";
+    const modalidad= document.getElementById("sel-modalidad").value || "todas";
+    pdf.save(`gafetes_${curso}_${modalidad}.pdf`);
+
+  } catch(e) {
+    alert("Error al generar PDF: " + e.message);
+    console.error(e);
+  } finally {
+    btnPdf.textContent = "⬇ Exportar PDF";
+    btnPdf.disabled    = false;
+  }
+}
+</script>
+</body>
+</html>
