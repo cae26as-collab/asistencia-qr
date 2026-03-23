@@ -732,25 +732,44 @@ async function urlABase64(url) {
 }
 
 async function capturarGafete(el) {
-  // Convertir todas las imágenes a base64 antes de capturar
+  // Paso 1: guardar srcs originales para restaurar después
   const imgs = [...el.querySelectorAll("img")];
-  await Promise.all(imgs.map(async img => {
-    const src = img.getAttribute("src");
-    if (!src || src.startsWith("data:")) return;
-    const b64 = await urlABase64(src);
-    if (b64 && b64.startsWith("data:")) img.src = b64;
+  const srcsOriginales = imgs.map(img => img.getAttribute("src") || "");
+
+  // Paso 2: reemplazar TODAS las imgs por base64 (evita canvas tainted)
+  await Promise.all(imgs.map(async (img, i) => {
+    const src = srcsOriginales[i];
+    if (!src || src.startsWith("data:") || src.startsWith("blob:")) return;
+    try {
+      const b64 = await urlABase64(src);
+      if (b64 && b64.startsWith("data:")) {
+        img.src = b64;
+      }
+    } catch(e) {
+      // Si falla el proxy, poner placeholder para no contaminar el canvas
+      img.src = "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
+    }
   }));
 
-  // Pequeña pausa para que el browser repinte con las nuevas src
-  await new Promise(r => setTimeout(r, 80));
+  // Paso 3: esperar repintado
+  await new Promise(r => setTimeout(r, 120));
 
-  return html2canvas(el, {
-    scale: 3,
-    useCORS: false,
-    allowTaint: true,
-    backgroundColor: "#ffffff",
-    logging: false,
-  });
+  // Paso 4: capturar — sin useCORS porque todo es base64/local ahora
+  let canvas;
+  try {
+    canvas = await html2canvas(el, {
+      scale: 3,
+      useCORS: false,
+      allowTaint: false,
+      backgroundColor: "#ffffff",
+      logging: false,
+    });
+  } finally {
+    // Paso 5: restaurar srcs originales para que la vista en pantalla no cambie
+    imgs.forEach((img, i) => { img.src = srcsOriginales[i]; });
+  }
+
+  return canvas;
 }
 
 // ════════════════════════════════════════════════════════════
