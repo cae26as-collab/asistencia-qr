@@ -3,879 +3,1264 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Asistencia QR</title>
-
-<!--
-  ╔══════════════════════════════════════════════════════════════╗
-  ║  SISTEMA DE ASISTENCIA QR — FRONTEND                        ║
-  ║  Requiere: https hosting (para acceso a cámara)             ║
-  ║  Reemplazar ENDPOINT_URL con la URL de tu deploy de GAS     ║
-  ╚══════════════════════════════════════════════════════════════╝
--->
-
+<title>Sistema de Asistencia QR</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f1117">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-
-<style>
-  :root {
-    --bg:        #0f1117;
-    --surface:   #1a1d27;
-    --surface2:  #242736;
-    --border:    #2e3246;
-    --text:      #e8eaf2;
-    --text2:     #8890aa;
-    --accent:    #4e7cff;
-    --green:     #22c55e;
-    --green-bg:  #052e16;
-    --yellow:    #f59e0b;
-    --yellow-bg: #1c1003;
-    --red:       #ef4444;
-    --red-bg:    #1c0303;
-    --radius:    12px;
-    --transition: 0.25s ease;
-  }
-
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-
-  body {
-    font-family: 'DM Sans', -apple-system, sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100dvh;
-    display: flex;
-    flex-direction: column;
-  }
-
-  /* ── HEADER ─────────────────────────────────────────── */
-  .header {
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-    padding: 14px 16px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-  }
-  .header-icon {
-    width: 32px; height: 32px;
-    background: var(--accent);
-    border-radius: 8px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 16px;
-  }
-  .header h1 { font-size: 16px; font-weight: 600; letter-spacing: -0.3px; }
-  .header span { font-size: 12px; color: var(--text2); }
-
-  /* ── TABS ───────────────────────────────────────────── */
-  .tabs {
-    display: flex;
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-    padding: 0 8px;
-  }
-  .tab {
-    flex: 1;
-    padding: 12px 4px;
-    text-align: center;
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--text2);
-    border-bottom: 2px solid transparent;
-    cursor: pointer;
-    transition: all var(--transition);
-    user-select: none;
-  }
-  .tab.active {
-    color: var(--accent);
-    border-bottom-color: var(--accent);
-  }
-
-  /* ── CONTENT ─────────────────────────────────────────── */
-  .panel { display: none; flex-direction: column; gap: 14px; padding: 16px; }
-  .panel.active { display: flex; }
-
-  /* ── CARD ────────────────────────────────────────────── */
-  .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 16px;
-  }
-  .card-label {
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.8px;
-    text-transform: uppercase;
-    color: var(--text2);
-    margin-bottom: 12px;
-  }
-
-  /* ── FORM CONTROLS ───────────────────────────────────── */
-  .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
-  .form-group:last-child { margin-bottom: 0; }
-
-  label { font-size: 13px; color: var(--text2); font-weight: 500; }
-
-  select, input[type="date"] {
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    color: var(--text);
-    font-size: 14px;
-    padding: 10px 12px;
-    width: 100%;
-    appearance: none;
-    -webkit-appearance: none;
-    outline: none;
-    transition: border-color var(--transition);
-  }
-  select:focus, input[type="date"]:focus {
-    border-color: var(--accent);
-  }
-  select option { background: var(--surface2); }
-
-  /* ── BTN ─────────────────────────────────────────────── */
-  .btn {
-    width: 100%;
-    padding: 13px;
-    border: none;
-    border-radius: 10px;
-    font-size: 15px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all var(--transition);
-    letter-spacing: -0.2px;
-  }
-  .btn-primary {
-    background: var(--accent);
-    color: #fff;
-  }
-  .btn-primary:hover { filter: brightness(1.1); }
-  .btn-primary:active { transform: scale(0.98); }
-  .btn-danger { background: var(--red-bg); color: var(--red); border: 1px solid var(--red); }
-
-  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-  /* ── QR READER ───────────────────────────────────────── */
-  #qr-reader {
-    border-radius: var(--radius);
-    overflow: hidden;
-    background: #000;
-    width: 100%;
-    aspect-ratio: 1;
-    max-width: 380px;
-    margin: 0 auto;
-  }
-  /* Ocultar UI extra de html5-qrcode */
-  #qr-reader img, #qr-reader select, #qr-reader button:not(#qr-reader__camera_permission_button) {
-    display: none !important;
-  }
-  #qr-reader__scan_region { border: none !important; }
-  #qr-reader video { border-radius: var(--radius) !important; }
-
-  /* ── SEMÁFORO ────────────────────────────────────────── */
-  .semaforo {
-    border-radius: var(--radius);
-    padding: 18px;
-    border-width: 1px;
-    border-style: solid;
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    min-height: 80px;
-    transition: all var(--transition);
-  }
-  .semaforo.idle { background: var(--surface2); border-color: var(--border); }
-  .semaforo.ok   { background: var(--green-bg); border-color: var(--green); }
-  .semaforo.warn { background: var(--yellow-bg); border-color: var(--yellow); }
-  .semaforo.err  { background: var(--red-bg); border-color: var(--red); }
-
-  .semaforo-dot {
-    width: 44px; height: 44px;
-    border-radius: 50%;
-    flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 22px;
-    transition: background var(--transition);
-  }
-  .idle .semaforo-dot  { background: var(--surface); }
-  .ok .semaforo-dot    { background: var(--green); }
-  .warn .semaforo-dot  { background: var(--yellow); }
-  .err .semaforo-dot   { background: var(--red); }
-
-  .semaforo-info { flex: 1; overflow: hidden; }
-  .semaforo-nombre {
-    font-size: 16px; font-weight: 600;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
-  .semaforo-sub { font-size: 13px; color: var(--text2); margin-top: 2px; }
-
-  /* ── SCANNER STATUS BAR ──────────────────────────────── */
-  .scan-bar {
-    display: flex; align-items: center; justify-content: space-between;
-    font-size: 13px;
-  }
-  .scan-badge {
-    padding: 4px 10px;
-    border-radius: 20px;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.5px;
-  }
-  .scan-badge.active { background: var(--green-bg); color: var(--green); }
-  .scan-badge.idle   { background: var(--surface2); color: var(--text2); }
-
-  /* ── PANEL DE PRESENTES ──────────────────────────────── */
-  .presentes-header {
-    display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: 12px;
-  }
-  .counter-badge {
-    background: var(--accent);
-    color: #fff;
-    font-size: 13px;
-    font-weight: 700;
-    padding: 3px 10px;
-    border-radius: 20px;
-    min-width: 36px;
-    text-align: center;
-  }
-
-  .presentes-list { display: flex; flex-direction: column; gap: 6px; }
-
-  .presente-item {
-    display: flex; align-items: center; gap: 10px;
-    padding: 10px 12px;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    animation: slideIn 0.2s ease;
-  }
-  @keyframes slideIn {
-    from { opacity: 0; transform: translateY(-6px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-  .presente-avatar {
-    width: 32px; height: 32px;
-    border-radius: 50%;
-    background: var(--accent);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 13px; font-weight: 700; color: #fff;
-    flex-shrink: 0;
-  }
-  .presente-nombre { font-size: 14px; font-weight: 500; flex: 1; }
-  .presente-dni { font-size: 12px; color: var(--text2); }
-
-  .empty-state {
-    text-align: center; padding: 32px 16px;
-    color: var(--text2); font-size: 14px;
-  }
-
-  /* ── LOADING OVERLAY ─────────────────────────────────── */
-  #loading-overlay {
-    position: fixed; inset: 0;
-    background: rgba(15,17,23,0.85);
-    display: flex; align-items: center; justify-content: center;
-    z-index: 999;
-    flex-direction: column; gap: 12px;
-  }
-  .spinner {
-    width: 36px; height: 36px;
-    border: 3px solid var(--border);
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    animation: spin 0.7s linear infinite;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  #loading-overlay p { font-size: 14px; color: var(--text2); }
-
-  /* ── COOLDOWN VISUAL ─────────────────────────────────── */
-  .cooldown-bar {
-    height: 3px;
-    background: var(--border);
-    border-radius: 2px;
-    overflow: hidden;
-  }
-  .cooldown-fill {
-    height: 100%;
-    background: var(--accent);
-    width: 0%;
-    transition: width 0.1s linear;
-  }
-
-  /* ── INFO CONFIG ──────────────────────────────────────── */
-  .config-chip {
-    display: inline-flex; align-items: center; gap: 6px;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    padding: 4px 10px;
-    font-size: 12px;
-    color: var(--text2);
-  }
-  .config-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-</style>
-
-<!-- Google Fonts -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#0f1117;--surface:#1a1d27;--surface2:#242736;--border:#2e3246;
+  --text:#e8eaf2;--text2:#8890aa;--accent:#4e7cff;
+  --green:#22c55e;--green-bg:#052e16;--yellow:#f59e0b;--yellow-bg:#1c1003;
+  --red:#ef4444;--red-bg:#1c0303;--radius:12px;--tr:.25s ease;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',-apple-system,sans-serif;background:var(--bg);color:var(--text);min-height:100dvh;display:flex;flex-direction:column}
+
+/* ── NAV PRINCIPAL ── */
+.main-nav{background:var(--surface);border-bottom:1px solid var(--border);display:flex;position:sticky;top:0;z-index:200}
+.nav-btn{flex:1;padding:14px 4px 10px;border:none;background:transparent;color:var(--text2);font-size:11px;font-weight:600;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;border-bottom:2px solid transparent;transition:all var(--tr);letter-spacing:.3px}
+.nav-btn .nav-icon{font-size:18px}
+.nav-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+
+/* ── HEADER ── */
+.sec-header{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 16px;display:flex;align-items:center;gap:10px}
+.sec-header-icon{width:30px;height:30px;background:var(--accent);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px}
+.sec-header h2{font-size:15px;font-weight:700}
+.sec-header span{font-size:12px;color:var(--text2)}
+
+/* ── SUB-TABS ── */
+.sub-tabs{display:flex;background:var(--surface);border-bottom:1px solid var(--border);padding:0 8px}
+.sub-tab{flex:1;padding:10px 4px;text-align:center;font-size:12px;font-weight:600;color:var(--text2);border-bottom:2px solid transparent;cursor:pointer;transition:all var(--tr)}
+.sub-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+
+/* ── SECCIONES ── */
+.section{display:none;flex-direction:column;flex:1}
+.section.active{display:flex}
+.sub-section{display:none;flex-direction:column;gap:14px;padding:16px;flex:1}
+.sub-section.active{display:flex}
+
+/* ── CARDS ── */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
+.card-label{font-size:11px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--text2);margin-bottom:12px}
+
+/* ── FORM ── */
+.form-group{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+.form-group:last-child{margin-bottom:0}
+label{font-size:13px;color:var(--text2);font-weight:500}
+select,input[type="date"]{background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;padding:10px 12px;width:100%;-webkit-appearance:none;outline:none;transition:border-color var(--tr)}
+select:focus,input[type="date"]:focus{border-color:var(--accent)}
+
+/* ── BTN ── */
+.btn{width:100%;padding:13px;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;transition:all var(--tr)}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{filter:brightness(1.1)}
+.btn-primary:active{transform:scale(.98)}
+.btn-danger{background:var(--red-bg);color:var(--red);border:1px solid var(--red)}
+.btn-secondary{background:var(--surface2);color:var(--text)}
+.btn-green{background:#16a34a;color:#fff}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-sm{padding:8px 14px;font-size:13px;width:auto;border-radius:8px}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap}
+
+/* ── SEMÁFORO ── */
+.semaforo{border-radius:var(--radius);padding:16px;border-width:1px;border-style:solid;display:flex;align-items:center;gap:14px;min-height:76px;transition:all var(--tr)}
+.semaforo.idle{background:var(--surface2);border-color:var(--border)}
+.semaforo.ok{background:var(--green-bg);border-color:var(--green)}
+.semaforo.warn{background:var(--yellow-bg);border-color:var(--yellow)}
+.semaforo.err{background:var(--red-bg);border-color:var(--red)}
+.sem-dot{width:42px;height:42px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:20px}
+.idle .sem-dot{background:var(--surface)}
+.ok .sem-dot{background:var(--green)}
+.warn .sem-dot{background:var(--yellow)}
+.err .sem-dot{background:var(--red)}
+.sem-info{flex:1;overflow:hidden}
+.sem-nombre{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sem-sub{font-size:12px;color:var(--text2);margin-top:2px}
+
+/* ── COOLDOWN ── */
+.cooldown-bar{height:3px;background:var(--border);border-radius:2px;overflow:hidden}
+.cooldown-fill{height:100%;background:var(--accent);width:0%}
+
+/* ── CHIPS ── */
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:4px 10px;font-size:12px;color:var(--text2)}
+
+/* ── SCAN STATUS ── */
+.scan-bar{display:flex;align-items:center;justify-content:space-between;font-size:13px}
+.scan-badge{padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600}
+.scan-badge.active{background:var(--green-bg);color:var(--green)}
+.scan-badge.idle{background:var(--surface2);color:var(--text2)}
+
+/* ── QR READER ── */
+#qr-reader{border-radius:var(--radius);overflow:hidden;background:#000;width:100%;aspect-ratio:1;max-width:360px;margin:0 auto}
+#qr-reader img,#qr-reader select{display:none!important}
+#qr-reader video{border-radius:var(--radius)!important}
+
+/* ── LISTA PRESENTES ── */
+.presentes-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.counter-badge{background:var(--accent);color:#fff;font-size:13px;font-weight:700;padding:3px 10px;border-radius:20px;min-width:32px;text-align:center}
+.presentes-list{display:flex;flex-direction:column;gap:6px}
+.presente-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;animation:slideIn .2s ease}
+@keyframes slideIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+.presente-avatar{width:30px;height:30px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex-shrink:0}
+.presente-nombre{font-size:14px;font-weight:500;flex:1}
+.presente-dni{font-size:12px;color:var(--text2)}
+.empty-state{text-align:center;padding:32px 16px;color:var(--text2);font-size:14px}
+
+/* ── LOADING ── */
+#loading-overlay{position:fixed;inset:0;background:rgba(15,17,23,.9);display:flex;align-items:center;justify-content:center;z-index:999;flex-direction:column;gap:12px}
+.spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── PANEL DOCENTE ── */
+.docente-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.docente-stat{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center}
+.docente-stat-num{font-size:28px;font-weight:800;color:var(--accent)}
+.docente-stat-label{font-size:11px;color:var(--text2);margin-top:2px}
+.docente-alumno{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:8px}
+.docente-alumno.presente .presente-avatar{background:var(--green)}
+.docente-alumno.ausente .presente-avatar{background:var(--surface2);color:var(--text2)}
+.docente-hora{font-size:11px;color:var(--text2);margin-left:auto}
+.docente-list{display:flex;flex-direction:column;gap:5px;max-height:60vh;overflow-y:auto}
+
+/* ── GAFETES ── */
+.gafetes-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;padding:16px}
+.gafete-wrap{display:flex;flex-direction:column;gap:6px}
+.gafete-actions{display:flex;align-items:center;gap:8px;justify-content:flex-end}
+.gafete-action-btn{padding:4px 10px;border:1px solid var(--border);border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;background:var(--surface);color:var(--text2)}
+.gafete{width:320px;height:213px;border-radius:10px;overflow:hidden;position:relative;display:flex;flex-direction:column;box-shadow:0 2px 10px rgba(0,0,0,.3);font-family:'DM Sans',Arial,sans-serif;background:#fff;flex-shrink:0}
+.gafete-header{display:flex;align-items:center;padding:6px 10px;gap:8px;flex-shrink:0}
+.gafete-logo{width:34px;height:34px;object-fit:contain;border-radius:4px;flex-shrink:0}
+.gafete-logo-ph{width:34px;height:34px;border-radius:4px;background:rgba(255,255,255,.3);flex-shrink:0}
+.gafete-inst-info{flex:1;overflow:hidden}
+.gafete-inst-name{font-size:8px;font-weight:700;color:#fff;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gafete-inst-loc{font-size:7px;color:rgba(255,255,255,.85);margin-top:1px}
+.gafete-body{flex:1;display:flex;align-items:center;padding:7px 10px;gap:8px;background:#fff}
+.gafete-img-box{width:80px;height:80px;flex-shrink:0;border:1.5px solid #ddd;border-radius:5px;box-shadow:2px 2px 5px rgba(0,0,0,.12);overflow:hidden;background:#f5f5f5;display:flex;align-items:center;justify-content:center}
+.gafete-img-box img{width:100%;height:100%;object-fit:cover}
+.gafete-img-ph{font-size:26px;color:#ccc}
+.gafete-info{flex:1;display:flex;flex-direction:column;justify-content:center;gap:3px;overflow:hidden;min-width:0}
+.gafete-nombre{font-size:10px;font-weight:800;color:#1a1814;line-height:1.25;text-transform:uppercase}
+.gafete-dni{font-size:8.5px;color:#666;font-weight:500}
+.gafete-footer{padding:5px 10px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.gafete-curso-badge{font-size:7.5px;font-weight:700;color:#fff;padding:2px 7px;border-radius:20px;background:rgba(255,255,255,.25)}
+.gafete-modal-text{font-size:6.5px;font-weight:600;color:rgba(255,255,255,.9);text-align:right;max-width:150px;line-height:1.2}
+
+/* ── INFORMES ── */
+.informe-config{display:flex;flex-direction:column;gap:10px}
+.informe-btn-group{display:flex;gap:10px}
+
+/* ── CTRL GAFETES ── */
+.ctrl-bar{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 16px;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.ctrl-group{display:flex;flex-direction:column;gap:5px}
+.ctrl-label{font-size:11px;font-weight:600;color:var(--text2);letter-spacing:.5px;text-transform:uppercase}
+.stats-bar{padding:8px 16px;font-size:13px;color:var(--text2);display:flex;align-items:center;gap:12px}
+.stats-badge{background:var(--accent);color:#fff;font-size:12px;font-weight:700;padding:2px 9px;border-radius:20px}
+
+/* ── PRINT ── */
+@media print{
+  body *{visibility:hidden}
+  #print-area,#print-area *{visibility:visible}
+  #print-area{position:fixed;inset:0;display:block!important}
+  .print-page{width:210mm;page-break-after:always;display:grid;grid-template-columns:repeat(2,90mm);grid-template-rows:repeat(4,60mm);gap:5mm;padding:10mm}
+  .print-page .gafete{width:90mm!important;height:60mm!important;box-shadow:none!important;break-inside:avoid}
+  .main-nav,.sec-header,.ctrl-bar,.stats-bar,.gafete-actions,.section:not(#print-area){display:none!important}
+}
+
+/* ── INFORME PDF PRINT ── */
+.informe-preview{background:#fff;color:#000;font-family:Arial,sans-serif;padding:20mm;width:210mm;margin:0 auto}
+.informe-encabezado{display:flex;align-items:flex-start;gap:14px;border-bottom:2px solid #333;padding-bottom:12px;margin-bottom:16px}
+.informe-logo{width:60px;height:60px;object-fit:contain}
+.informe-inst-data h2{font-size:13px;font-weight:700;color:#000;margin-bottom:2px}
+.informe-inst-data p{font-size:10px;color:#333;line-height:1.5}
+.informe-titulo{font-size:14px;font-weight:700;text-align:center;margin-bottom:14px;text-transform:uppercase;letter-spacing:.5px}
+.informe-tabla{width:100%;border-collapse:collapse;font-size:9px}
+.informe-tabla th{background:#333;color:#fff;padding:5px 6px;text-align:left;font-size:8px;text-transform:uppercase}
+.informe-tabla td{padding:4px 6px;border-bottom:1px solid #eee;vertical-align:middle}
+.informe-tabla tr:nth-child(even) td{background:#f8f8f8}
+.informe-tabla .rojo{background:#fee2e2!important;color:#991b1b;font-weight:700}
+.informe-tabla .amarillo{background:#fef3c7!important;color:#92400e}
+.informe-pie{margin-top:12px;font-size:8px;color:#666;text-align:right}
+</style>
 </head>
 <body>
 
-<!-- ── LOADING OVERLAY ────────────────────────────────────── -->
 <div id="loading-overlay">
   <div class="spinner"></div>
-  <p>Cargando configuración...</p>
+  <p style="color:var(--text2);font-size:14px">Cargando sistema...</p>
 </div>
 
-<!-- ── HEADER ─────────────────────────────────────────────── -->
-<div class="header">
-  <div class="header-icon">📋</div>
-  <div>
-    <h1>Asistencia QR</h1>
-    <span id="header-sub">Inicializando...</span>
-  </div>
-</div>
-
-<!-- ── TABS ───────────────────────────────────────────────── -->
-<div class="tabs">
-  <div class="tab active" data-tab="config">⚙ Configurar</div>
-  <div class="tab" data-tab="scanner">📷 Escanear</div>
-  <div class="tab" data-tab="presentes">👥 Presentes</div>
-</div>
-
-<!-- ════ PANEL 1: CONFIGURACIÓN ════════════════════════════ -->
-<div class="panel active" id="panel-config">
-
-  <div class="card">
-    <div class="card-label">Fecha de clase</div>
-    <div class="form-group">
-      <input type="date" id="input-fecha" />
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-label">Selección de clase</div>
-    <div class="form-group">
-      <label>Curso</label>
-      <select id="sel-curso">
-        <option value="">— Seleccioná un curso —</option>
-      </select>
-    </div>
-    <div class="form-group">
-      <label>Modalidad</label>
-      <select id="sel-modalidad" disabled>
-        <option value="">— Primero seleccioná un curso —</option>
-      </select>
-    </div>
-    <div class="form-group">
-      <label>Materia</label>
-      <select id="sel-materia" disabled>
-        <option value="">— Primero seleccioná modalidad —</option>
-      </select>
-    </div>
-  </div>
-
-  <button class="btn btn-primary" id="btn-iniciar" disabled onclick="iniciarEscaneo()">
-    Iniciar escaneo →
+<!-- ══ NAVEGACIÓN PRINCIPAL ══════════════════════════════════ -->
+<nav class="main-nav">
+  <button class="nav-btn active" data-sec="asistencia" onclick="switchSection('asistencia',this)">
+    <span class="nav-icon">📱</span>ASISTENCIA
   </button>
+  <button class="nav-btn" data-sec="docente" onclick="switchSection('docente',this)">
+    <span class="nav-icon">🖥</span>DOCENTE
+  </button>
+  <button class="nav-btn" data-sec="gafetes" onclick="switchSection('gafetes',this)">
+    <span class="nav-icon">🪪</span>GAFETES
+  </button>
+</nav>
 
-</div>
-
-<!-- ════ PANEL 2: SCANNER ═══════════════════════════════════ -->
-<div class="panel" id="panel-scanner">
-
-  <!-- Semáforo -->
-  <div class="semaforo idle" id="semaforo">
-    <div class="semaforo-dot" id="sem-dot">🎯</div>
-    <div class="semaforo-info">
-      <div class="semaforo-nombre" id="sem-nombre">Esperando escaneo...</div>
-      <div class="semaforo-sub" id="sem-sub">Apuntá la cámara al código QR</div>
+<!-- ══════════════════════════════════════════════════════════
+     SECCIÓN 1: ASISTENCIA
+══════════════════════════════════════════════════════════════ -->
+<section class="section active" id="sec-asistencia">
+  <div class="sec-header">
+    <div class="sec-header-icon">📱</div>
+    <div>
+      <h2>Registro de asistencia</h2>
+      <span id="asist-sub">Cargando configuración...</span>
     </div>
   </div>
 
-  <!-- Barra de cooldown -->
-  <div class="cooldown-bar">
-    <div class="cooldown-fill" id="cooldown-fill"></div>
+  <div class="sub-tabs">
+    <div class="sub-tab active" onclick="switchSubTab('asistencia','config',this)">⚙ Configurar</div>
+    <div class="sub-tab" onclick="switchSubTab('asistencia','scanner',this)">📷 Escanear</div>
+    <div class="sub-tab" onclick="switchSubTab('asistencia','presentes',this)">👥 Presentes</div>
   </div>
 
-  <!-- Info de clase activa -->
-  <div class="config-chips" id="chips-config"></div>
-
-  <!-- Estado del scanner -->
-  <div class="scan-bar">
-    <span id="scan-status" style="color:var(--text2); font-size:13px;">Scanner inactivo</span>
-    <span class="scan-badge idle" id="scan-badge">INACTIVO</span>
-  </div>
-
-  <!-- Visor QR -->
-  <div id="qr-reader"></div>
-
-  <!-- Botón detener -->
-  <button class="btn btn-danger" id="btn-detener" onclick="detenerEscaneo()" style="display:none">
-    ⏹ Detener scanner
-  </button>
-
-  <!-- Botón volver -->
-  <button class="btn" style="background:var(--surface2);color:var(--text)" onclick="switchTab('config')">
-    ← Cambiar configuración
-  </button>
-
-</div>
-
-<!-- ════ PANEL 3: PRESENTES ═════════════════════════════════ -->
-<div class="panel" id="panel-presentes">
-
-  <div style="display:flex;gap:8px;background:var(--surface2);border-radius:10px;padding:4px;">
-    <button id="subtab-hoy" onclick="switchSubtab(this,'hoy')"
-      style="flex:1;padding:8px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;background:var(--surface);color:var(--text);transition:all .2s">
-      Presentes hoy
-    </button>
-    <button id="subtab-inasist" onclick="switchSubtab(this,'inasist')"
-      style="flex:1;padding:8px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;background:transparent;color:var(--text2);transition:all .2s">
-      Inasistencias
+  <!-- Config -->
+  <div class="sub-section active" id="asist-config">
+    <div class="card">
+      <div class="card-label">Fecha de clase</div>
+      <div class="form-group"><input type="date" id="input-fecha"/></div>
+    </div>
+    <div class="card">
+      <div class="card-label">Clase</div>
+      <div class="form-group"><label>Curso</label>
+        <select id="sel-curso"><option value="">— Seleccioná un curso —</option></select></div>
+      <div class="form-group"><label>Modalidad</label>
+        <select id="sel-modalidad" disabled><option value="">— Primero seleccioná curso —</option></select></div>
+      <div class="form-group"><label>Espacio curricular</label>
+        <select id="sel-materia" disabled><option value="">— Primero seleccioná modalidad —</option></select></div>
+    </div>
+    <button class="btn btn-primary" id="btn-iniciar" disabled onclick="iniciarEscaneo()">
+      Iniciar escaneo →
     </button>
   </div>
 
-  <div id="sub-hoy">
-    <div class="card">
-      <div class="presentes-header">
-        <div class="card-label" style="margin-bottom:0">Presentes registrados</div>
-        <span class="counter-badge" id="counter">0</span>
+  <!-- Scanner -->
+  <div class="sub-section" id="asist-scanner">
+    <div class="semaforo idle" id="semaforo">
+      <div class="sem-dot" id="sem-dot">🎯</div>
+      <div class="sem-info">
+        <div class="sem-nombre" id="sem-nombre">Esperando escaneo...</div>
+        <div class="sem-sub" id="sem-sub">Apuntá la cámara al código QR</div>
       </div>
-      <div id="presentes-list" class="presentes-list">
-        <div class="empty-state">Seleccioná una clase para ver los presentes</div>
+    </div>
+    <div class="cooldown-bar"><div class="cooldown-fill" id="cooldown-fill"></div></div>
+    <div class="chips" id="chips-config"></div>
+    <div class="scan-bar">
+      <span id="scan-status" style="color:var(--text2);font-size:13px">Scanner inactivo</span>
+      <span class="scan-badge idle" id="scan-badge">INACTIVO</span>
+    </div>
+    <div id="qr-reader"></div>
+    <button class="btn btn-danger" id="btn-detener" onclick="detenerEscaneo()" style="display:none">⏹ Detener scanner</button>
+    <button class="btn btn-secondary" onclick="switchSubTab('asistencia','config',document.querySelector('[data-stab=config]'))">← Cambiar configuración</button>
+  </div>
+
+  <!-- Presentes -->
+  <div class="sub-section" id="asist-presentes">
+    <div style="display:flex;gap:8px;background:var(--surface2);border-radius:10px;padding:4px">
+      <button id="sbtn-hoy" onclick="switchSubtabPresentes('hoy')"
+        style="flex:1;padding:8px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;background:var(--surface);color:var(--text)">
+        Presentes hoy
+      </button>
+      <button id="sbtn-inasist" onclick="switchSubtabPresentes('inasist')"
+        style="flex:1;padding:8px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;background:transparent;color:var(--text2)">
+        Inasistencias
+      </button>
+    </div>
+    <div id="sub-hoy">
+      <div class="card">
+        <div class="presentes-header">
+          <div class="card-label" style="margin-bottom:0">Presentes registrados</div>
+          <span class="counter-badge" id="counter">0</span>
+        </div>
+        <div id="presentes-list" class="presentes-list">
+          <div class="empty-state">Seleccioná una clase para ver los presentes</div>
+        </div>
+      </div>
+    </div>
+    <div id="sub-inasist" style="display:none">
+      <div class="card">
+        <div class="presentes-header">
+          <div class="card-label" style="margin-bottom:0">Inasistencias acumuladas</div>
+          <span id="total-fechas-label" style="font-size:12px;color:var(--text2)"></span>
+        </div>
+        <div id="inasist-list" class="presentes-list">
+          <div class="empty-state">Seleccioná una clase para ver las inasistencias</div>
+        </div>
       </div>
     </div>
   </div>
+</section>
 
-  <div id="sub-inasist" style="display:none">
-    <div class="card">
-      <div class="presentes-header">
-        <div class="card-label" style="margin-bottom:0">Inasistencias acumuladas</div>
-        <span id="total-fechas-label" style="font-size:12px;color:var(--text2)"></span>
-      </div>
-      <div id="inasist-list" class="presentes-list">
-        <div class="empty-state">Seleccioná una clase para ver las inasistencias</div>
-      </div>
+<!-- ══════════════════════════════════════════════════════════
+     SECCIÓN 2: PANEL DOCENTE
+══════════════════════════════════════════════════════════════ -->
+<section class="section" id="sec-docente">
+  <div class="sec-header">
+    <div class="sec-header-icon">🖥</div>
+    <div>
+      <h2>Panel docente</h2>
+      <span id="docente-sub">Seguimiento y reportes</span>
     </div>
   </div>
 
-</div>
+  <div class="sub-tabs">
+    <div class="sub-tab active" onclick="switchSubTab('docente','enlive',this)">📡 En vivo</div>
+    <div class="sub-tab" onclick="switchSubTab('docente','informes',this)">📄 Informes PDF</div>
+  </div>
+
+  <!-- En vivo -->
+  <div class="sub-section active" id="docente-enlive">
+    <div class="card">
+      <div class="card-label">Seleccionar clase a monitorear</div>
+      <div class="form-group"><label>Curso</label>
+        <select id="doc-curso" onchange="onDocCursoChange()"><option value="">— Curso —</option></select></div>
+      <div class="form-group"><label>Modalidad</label>
+        <select id="doc-modalidad" disabled onchange="onDocModalidadChange()"><option value="">— Modalidad —</option></select></div>
+      <div class="form-group"><label>Espacio curricular</label>
+        <select id="doc-materia" disabled><option value="">— Materia —</option></select></div>
+      <div class="form-group"><label>Fecha</label>
+        <input type="date" id="doc-fecha"/></div>
+      <button class="btn btn-primary" id="btn-doc-cargar" disabled onclick="cargarPanelDocente()">
+        📡 Cargar panel en vivo
+      </button>
+    </div>
+
+    <div id="docente-panel" style="display:none">
+      <div class="docente-grid" style="margin-bottom:10px">
+        <div class="docente-stat">
+          <div class="docente-stat-num" id="doc-total-presentes">0</div>
+          <div class="docente-stat-label">Presentes</div>
+        </div>
+        <div class="docente-stat">
+          <div class="docente-stat-num" id="doc-total-ausentes" style="color:var(--red)">0</div>
+          <div class="docente-stat-label">Ausentes</div>
+        </div>
+        <div class="docente-stat">
+          <div class="docente-stat-num" id="doc-total-alumnos">0</div>
+          <div class="docente-stat-label">Total curso</div>
+        </div>
+        <div class="docente-stat">
+          <div class="docente-stat-num" id="doc-pct" style="color:var(--yellow)">0%</div>
+          <div class="docente-stat-label">Asistencia</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="presentes-header">
+          <div class="card-label" style="margin-bottom:0">Listado completo</div>
+          <span style="font-size:11px;color:var(--text2)" id="doc-ultima-act">—</span>
+        </div>
+        <div class="docente-list" id="docente-list"></div>
+      </div>
+      <button class="btn btn-secondary" onclick="detenerPanelDocente()" style="margin-top:4px">⏹ Detener actualización</button>
+    </div>
+  </div>
+
+  <!-- Informes -->
+  <div class="sub-section" id="docente-informes">
+    <div class="card">
+      <div class="card-label">Seleccionar curso y espacio</div>
+      <div class="form-group"><label>Curso</label>
+        <select id="inf-curso" onchange="onInfCursoChange()"><option value="">— Curso —</option></select></div>
+      <div class="form-group"><label>Modalidad</label>
+        <select id="inf-modalidad" disabled onchange="onInfModalidadChange()"><option value="">— Modalidad —</option></select></div>
+      <div class="form-group"><label>Espacio curricular</label>
+        <select id="inf-materia" disabled><option value="">— Materia —</option></select></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary btn-sm" id="btn-inf-meses" disabled onclick="generarInformeMeses()">
+        📅 Informe por meses
+      </button>
+      <button class="btn btn-green btn-sm" id="btn-inf-trim" disabled onclick="generarInformeTrimestres()">
+        📊 Informe por períodos
+      </button>
+    </div>
+    <div id="inf-preview" style="display:none">
+      <div class="card">
+        <div class="card-label">Vista previa</div>
+        <div id="inf-contenido"></div>
+        <button class="btn btn-primary" style="margin-top:12px" onclick="imprimirInforme()">
+          🖨 Exportar PDF
+        </button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════
+     SECCIÓN 3: GAFETES
+══════════════════════════════════════════════════════════════ -->
+<section class="section" id="sec-gafetes">
+  <div class="sec-header">
+    <div class="sec-header-icon">🪪</div>
+    <div>
+      <h2>Generador de gafetes</h2>
+      <span id="gafetes-sub">Seleccioná curso y modalidad</span>
+    </div>
+  </div>
+
+  <div class="ctrl-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Curso</span>
+      <select id="gaf-curso" onchange="onGafCursoChange()" style="min-width:100px">
+        <option value="">Todos</option>
+      </select>
+    </div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">Modalidad</span>
+      <select id="gaf-modalidad" style="min-width:160px">
+        <option value="">Todas</option>
+      </select>
+    </div>
+    <div class="btn-row" style="flex:1;justify-content:flex-end">
+      <button class="btn btn-primary btn-sm" onclick="cargarGafetes()">🔄 Cargar</button>
+      <button class="btn btn-secondary btn-sm" id="gaf-btn-print" disabled onclick="imprimirGafetes()">🖨</button>
+      <button class="btn btn-green btn-sm" id="gaf-btn-pdf" disabled onclick="exportarPDF()">⬇ PDF</button>
+      <button class="btn btn-sm" style="background:#7c3aed;color:#fff" id="gaf-btn-zip" disabled onclick="exportarZIP()">🗜 ZIP</button>
+    </div>
+  </div>
+
+  <div class="stats-bar">
+    <span id="gaf-stats">Usá los filtros y presioná Cargar</span>
+    <span class="stats-badge" id="gaf-count" style="display:none">0</span>
+  </div>
+
+  <div id="gafetes-grid" class="gafetes-grid">
+    <div class="empty-state" style="grid-column:1/-1">
+      <p>🪪</p><p style="margin-top:8px">Seleccioná filtros y presioná Cargar</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══ ÁREA DE IMPRESIÓN (oculta) ═════════════════════════════ -->
+<div id="print-area" style="display:none"></div>
 
 <script>
 // ════════════════════════════════════════════════════════════
-//  CONFIGURACIÓN — REEMPLAZÁ ESTA URL CON TU DEPLOY DE GAS
+//  CONFIG
 // ════════════════════════════════════════════════════════════
 const ENDPOINT_URL = "https://script.google.com/macros/s/AKfycbw6UaOo9tZ7rmyyhsH2iBT4on2yTubf3t-rfqHuZcF3pkXvhRD71cYHMUHSS0AoCUAeAg/exec";
 
 // ════════════════════════════════════════════════════════════
-//  ESTADO DE LA APP
+//  ESTADO GLOBAL
 // ════════════════════════════════════════════════════════════
-const state = {
-  config:      [],       // Array de { curso, modalidad, materia } desde GAS
-  clase:       null,     // { fecha, curso, modalidad, materia }
-  presentes:   [],       // [{ nombre, dni }]
-  scanner:     null,     // instancia de Html5Qrcode
-  scanning:    false,
-  processing:  false,    // evita escaneos simultáneos
-  cooldownMs:  2500,     // ms de pausa tras cada escaneo
+const app = {
+  config:       [],
+  clase:        null,
+  presentes:    [],
+  scanner:      null,
+  scanning:     false,
+  processing:   false,
+  cooldownMs:   2500,
+  docTimer:     null,
+  docAlumnos:   [],
+  gafetes:      [],
+  gafVisibles:  [],
+  gafGrupos:    [],
+  imgCache:     {},
 };
 
 // ════════════════════════════════════════════════════════════
 //  INICIO
 // ════════════════════════════════════════════════════════════
 window.addEventListener("DOMContentLoaded", async () => {
-  // Fecha de hoy por defecto
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = new Date().toISOString().slice(0,10);
   document.getElementById("input-fecha").value = hoy;
+  document.getElementById("doc-fecha").value   = hoy;
 
-  // Tabs
-  document.querySelectorAll(".tab").forEach(t =>
-    t.addEventListener("click", () => switchTab(t.dataset.tab))
-  );
-
-  // Selectores en cascada
   document.getElementById("sel-curso").addEventListener("change", onCursoChange);
   document.getElementById("sel-modalidad").addEventListener("change", onModalidadChange);
-  document.getElementById("sel-materia").addEventListener("change", validarFormulario);
-  document.getElementById("input-fecha").addEventListener("change", validarFormulario);
+  document.getElementById("sel-materia").addEventListener("change", validarFormAsist);
+  document.getElementById("input-fecha").addEventListener("change", validarFormAsist);
+  document.getElementById("doc-materia").addEventListener("change", validarFormDocente);
+  document.getElementById("doc-fecha").addEventListener("change", validarFormDocente);
+  document.getElementById("inf-materia").addEventListener("change", validarFormInforme);
 
-  // Cargar configuración desde GAS
   await cargarConfig();
 });
 
-// ── Cargar CONFIG_ASISTENCIA desde el backend ────────────────
 async function cargarConfig() {
   try {
-    // redirect:'follow' es obligatorio — GAS redirige antes de responder
-    const res = await fetch(`${ENDPOINT_URL}?action=getConfig`, {
-      redirect: "follow",
-    });
+    const res  = await fetch(`${ENDPOINT_URL}?action=getConfig`, { redirect:"follow" });
     const data = await res.json();
-
-    if (data.status !== "ok" || !data.config) throw new Error(data.message || "Sin config");
-
-    state.config = data.config;
-    poblarCursos();
-    document.getElementById("header-sub").textContent = `${data.config.length} combinaciones activas`;
-
-  } catch (err) {
-    document.getElementById("header-sub").textContent = "Error al cargar config";
-    alert("⚠ No se pudo conectar con el backend.\n\nVerificá que:\n1. La URL del endpoint es correcta\n2. El script está publicado como 'Cualquier persona'\n\nError: " + err.message);
+    if (data.status !== "ok") throw new Error(data.message);
+    app.config = data.config;
+    poblarCursosEn("sel-curso", app.config);
+    poblarCursosEn("doc-curso", app.config);
+    poblarCursosEn("inf-curso", app.config);
+    document.getElementById("asist-sub").textContent = `${data.config.length} espacios activos`;
+  } catch(e) {
+    document.getElementById("asist-sub").textContent = "Error al conectar";
+    alert("No se pudo conectar con el backend.\n" + e.message);
   } finally {
     document.getElementById("loading-overlay").style.display = "none";
   }
+
+  try {
+    const r2   = await fetch(`${ENDPOINT_URL}?action=getConfigGafetes`, { redirect:"follow" });
+    const d2   = await r2.json();
+    if (d2.status === "ok") {
+      app.gafGrupos = d2.grupos;
+      poblarCursosGafetes();
+    }
+  } catch(e) { console.warn("getConfigGafetes:", e); }
 }
 
-// ── Poblar dropdown de cursos ────────────────────────────────
-function poblarCursos() {
-  const cursos = [...new Set(state.config.map(c => c.curso))].sort((a,b) => a - b);
-  const sel = document.getElementById("sel-curso");
+// ════════════════════════════════════════════════════════════
+//  NAVEGACIÓN
+// ════════════════════════════════════════════════════════════
+function switchSection(sec, btn) {
+  document.querySelectorAll(".section").forEach(s => s.classList.remove("active"));
+  document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
+  document.getElementById("sec-" + sec).classList.add("active");
+  btn.classList.add("active");
+  if (sec === "docente" && app.docAlumnos.length) actualizarPanelDocente();
+}
+
+function switchSubTab(sec, tab, btn) {
+  const prefix = sec === "asistencia" ? "asist" : "docente";
+  document.querySelectorAll(`#sec-${sec} .sub-section`).forEach(s => s.classList.remove("active"));
+  document.querySelectorAll(`#sec-${sec} .sub-tab`).forEach(t => t.classList.remove("active"));
+  document.getElementById(`${prefix}-${tab}`).classList.add("active");
+  if (btn) btn.classList.add("active");
+}
+
+function switchSubtabPresentes(panel) {
+  const btnH = document.getElementById("sbtn-hoy");
+  const btnI = document.getElementById("sbtn-inasist");
+  btnH.style.background = panel==="hoy" ? "var(--surface)" : "transparent";
+  btnH.style.color      = panel==="hoy" ? "var(--text)"    : "var(--text2)";
+  btnI.style.background = panel==="inasist" ? "var(--surface)" : "transparent";
+  btnI.style.color      = panel==="inasist" ? "var(--text)"    : "var(--text2)";
+  document.getElementById("sub-hoy").style.display     = panel==="hoy"     ? "" : "none";
+  document.getElementById("sub-inasist").style.display = panel==="inasist" ? "" : "none";
+}
+
+// ════════════════════════════════════════════════════════════
+//  HELPERS DROPDOWNS
+// ════════════════════════════════════════════════════════════
+function poblarCursosEn(selId, config) {
+  const cursos = [...new Set(config.map(c => c.curso))].sort((a,b) => a-b);
+  const sel = document.getElementById(selId);
   sel.innerHTML = '<option value="">— Seleccioná un curso —</option>';
   cursos.forEach(c => {
-    const opt = document.createElement("option");
-    opt.value = c;
-    opt.textContent = `${c}° año`;
-    sel.appendChild(opt);
+    const o = document.createElement("option");
+    o.value = c; o.textContent = `${c}° año`;
+    sel.appendChild(o);
   });
 }
 
+function poblarModalidades(selId, curso, config) {
+  const sel = document.getElementById(selId);
+  sel.innerHTML = '<option value="">— Modalidad —</option>';
+  const mods = [...new Set(config.filter(c => !curso || c.curso === parseInt(curso)).map(c => c.modalidad))];
+  mods.forEach(m => { const o = document.createElement("option"); o.value=m; o.textContent=m; sel.appendChild(o); });
+  sel.disabled = false;
+}
+
+function poblarMaterias(selId, curso, modal, config) {
+  const sel = document.getElementById(selId);
+  sel.innerHTML = '<option value="">— Espacio curricular —</option>';
+  const mats = config.filter(c => c.curso===parseInt(curso) && c.modalidad===modal).map(c=>c.materia);
+  mats.forEach(m => { const o = document.createElement("option"); o.value=m; o.textContent=m; sel.appendChild(o); });
+  sel.disabled = false;
+}
+
+function normalizar(s) {
+  return s.toString().normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim();
+}
+
+// ════════════════════════════════════════════════════════════
+//  ASISTENCIA — DROPDOWNS EN CASCADA
+// ════════════════════════════════════════════════════════════
 function onCursoChange() {
-  const curso = parseInt(document.getElementById("sel-curso").value, 10);
-  const selModal = document.getElementById("sel-modalidad");
-  const selMat   = document.getElementById("sel-materia");
-
-  selModal.innerHTML = '<option value="">— Seleccioná modalidad —</option>';
-  selMat.innerHTML   = '<option value="">— Primero seleccioná modalidad —</option>';
-  selModal.disabled = true;
-  selMat.disabled   = true;
-
-  if (!curso) return validarFormulario();
-
-  const modalidades = [...new Set(
-    state.config.filter(c => c.curso === curso).map(c => c.modalidad)
-  )];
-  modalidades.forEach(m => {
-    const opt = document.createElement("option");
-    opt.value = m; opt.textContent = m;
-    selModal.appendChild(opt);
-  });
-  selModal.disabled = false;
-  validarFormulario();
+  const curso = document.getElementById("sel-curso").value;
+  const selM  = document.getElementById("sel-modalidad");
+  const selMat= document.getElementById("sel-materia");
+  const saved = selM.value;
+  poblarModalidades("sel-modalidad", curso, app.config);
+  if (app.config.some(c => c.modalidad===saved)) selM.value = saved;
+  selMat.innerHTML = '<option value="">— Espacio curricular —</option>';
+  selMat.disabled = true;
+  validarFormAsist();
 }
-
 function onModalidadChange() {
-  const curso     = parseInt(document.getElementById("sel-curso").value, 10);
-  const modalidad = document.getElementById("sel-modalidad").value;
-  const selMat    = document.getElementById("sel-materia");
-
-  selMat.innerHTML = '<option value="">— Seleccioná materia —</option>';
-  selMat.disabled  = true;
-
-  if (!modalidad) return validarFormulario();
-
-  const materias = state.config
-    .filter(c => c.curso === curso && c.modalidad === modalidad)
-    .map(c => c.materia);
-
-  materias.forEach(m => {
-    const opt = document.createElement("option");
-    opt.value = m; opt.textContent = m;
-    selMat.appendChild(opt);
-  });
-  selMat.disabled = false;
-  validarFormulario();
+  const curso = document.getElementById("sel-curso").value;
+  const modal = document.getElementById("sel-modalidad").value;
+  poblarMaterias("sel-materia", curso, modal, app.config);
+  validarFormAsist();
 }
-
-function validarFormulario() {
-  const ok =
-    document.getElementById("input-fecha").value &&
-    document.getElementById("sel-curso").value &&
-    document.getElementById("sel-modalidad").value &&
-    document.getElementById("sel-materia").value;
+function validarFormAsist() {
+  const ok = document.getElementById("input-fecha").value &&
+             document.getElementById("sel-curso").value &&
+             document.getElementById("sel-modalidad").value &&
+             document.getElementById("sel-materia").value;
   document.getElementById("btn-iniciar").disabled = !ok;
 }
 
 // ════════════════════════════════════════════════════════════
-//  NAVEGACIÓN POR TABS
-// ════════════════════════════════════════════════════════════
-function switchTab(tab) {
-  document.querySelectorAll(".tab").forEach(t =>
-    t.classList.toggle("active", t.dataset.tab === tab)
-  );
-  document.querySelectorAll(".panel").forEach(p =>
-    p.classList.toggle("active", p.id === `panel-${tab}`)
-  );
-}
-
-// ════════════════════════════════════════════════════════════
-//  SCANNER
+//  ASISTENCIA — SCANNER
 // ════════════════════════════════════════════════════════════
 function iniciarEscaneo() {
-  state.clase = {
+  app.clase = {
     fecha:     document.getElementById("input-fecha").value,
     curso:     document.getElementById("sel-curso").value,
     modalidad: document.getElementById("sel-modalidad").value,
     materia:   document.getElementById("sel-materia").value,
   };
-
-  // Mostrar chips de config activa
-  const chips = document.getElementById("chips-config");
-  chips.innerHTML = [
-    `📅 ${formatFechaDisplay(state.clase.fecha)}`,
-    `🎓 ${state.clase.curso}° año`,
-    `🏫 ${state.clase.modalidad}`,
-    `📚 ${state.clase.materia}`
-  ].map(t => `<span class="config-chip">${t}</span>`).join("");
-
-  switchTab("scanner");
-
-  // BUG 3 FIX: cargar presentes ya registrados desde el backend
+  app.presentes = [];
+  document.getElementById("chips-config").innerHTML = [
+    `📅 ${fmtFecha(app.clase.fecha)}`,
+    `🎓 ${app.clase.curso}° año`,
+    `🏫 ${app.clase.modalidad}`,
+    `📚 ${app.clase.materia}`
+  ].map(t => `<span class="chip">${t}</span>`).join("");
+  switchSubTab("asistencia","scanner", document.querySelector('#sec-asistencia .sub-tabs .sub-tab:nth-child(2)'));
   cargarPresentesDesdeBackend();
-
-  // Pequeño delay para que el DOM esté listo antes de iniciar la cámara
   setTimeout(arrancarCamara, 300);
 }
 
 async function arrancarCamara() {
   try {
-    if (state.scanner) {
-      try { await state.scanner.stop(); } catch(e) {}
-    }
-
-    state.scanner = new Html5Qrcode("qr-reader");
-
-    await state.scanner.start(
-      { facingMode: "environment" },  // cámara trasera
-      {
-        fps: 10,
-        qrbox: { width: 240, height: 240 },
-        aspectRatio: 1.0,
-        disableFlip: false,
-      },
-      onScanExito,
-      onScanError  // silencioso
+    if (app.scanner) { try { await app.scanner.stop(); } catch(e){} }
+    app.scanner = new Html5Qrcode("qr-reader");
+    await app.scanner.start(
+      { facingMode:"environment" },
+      { fps:10, qrbox:{width:230,height:230}, aspectRatio:1.0 },
+      onScanExito, () => {}
     );
-
-    state.scanning = true;
+    app.scanning = true;
     document.getElementById("scan-badge").textContent = "ACTIVO";
     document.getElementById("scan-badge").className   = "scan-badge active";
-    document.getElementById("scan-status").textContent = "Listo para escanear";
+    document.getElementById("scan-status").textContent= "Listo para escanear";
     document.getElementById("btn-detener").style.display = "block";
-
-  } catch (err) {
-    setSemaforo("err", "Error de cámara", err.message);
-    console.error("Error iniciando cámara:", err);
+  } catch(err) {
+    setSemaforo("err","Error de cámara", err.message);
   }
 }
 
 function detenerEscaneo() {
-  if (state.scanner && state.scanning) {
-    state.scanner.stop().then(() => {
-      state.scanning = false;
+  if (app.scanner && app.scanning) {
+    app.scanner.stop().then(() => {
+      app.scanning = false;
       document.getElementById("scan-badge").textContent = "INACTIVO";
       document.getElementById("scan-badge").className   = "scan-badge idle";
-      document.getElementById("scan-status").textContent = "Scanner detenido";
       document.getElementById("btn-detener").style.display = "none";
     }).catch(console.error);
   }
 }
 
-// ── Callback exitoso del scanner ─────────────────────────────
 async function onScanExito(dni) {
-  if (state.processing) return;
-  state.processing = true;
-
+  if (app.processing) return;
+  app.processing = true;
+  setSemaforo("idle","Verificando...", `DNI: ${dni}`);
+  iniciarCooldown();
   try {
-    setSemaforo("idle", "Verificando...", `DNI: ${dni}`);
-    iniciarCooldownBar();
-
-    const body = {
-      dni:       dni.trim(),
-      fecha:     state.clase.fecha,
-      curso:     state.clase.curso,
-      modalidad: state.clase.modalidad,
-      materia:   state.clase.materia,
-    };
-
-    const res = await fetch(ENDPOINT_URL, {
-      method:   "POST",
-      redirect: "follow",
-      // Content-Type: text/plain evita el preflight OPTIONS que GAS no maneja
-      headers:  { "Content-Type": "text/plain;charset=UTF-8" },
-      body:     JSON.stringify(body),
+    const res  = await fetch(ENDPOINT_URL, {
+      method:"POST", redirect:"follow",
+      headers:{"Content-Type":"text/plain;charset=UTF-8"},
+      body: JSON.stringify({ dni:dni.trim(), fecha:app.clase.fecha, curso:app.clase.curso, modalidad:app.clase.modalidad, materia:app.clase.materia }),
     });
-
     const data = await res.json();
-    procesarRespuesta(data);
-
-  } catch (err) {
-    setSemaforo("err", "Error de red", err.message);
+    if (data.status === "ok") {
+      setSemaforo("ok", data.nombre, `DNI ${data.dni} · Presentes: ${data.totalPresentes}`);
+      agregarPresente(data.nombre, data.dni);
+    } else if (data.status === "repetido") {
+      setSemaforo("warn", data.nombre, `Ya registrado · DNI ${data.dni}`);
+    } else {
+      setSemaforo("err", data.nombre || "Error", data.message || "Error desconocido");
+    }
+  } catch(e) {
+    setSemaforo("err","Error de red", e.message);
   } finally {
-    // Cooldown: evita re-escaneos rápidos
-    setTimeout(() => { state.processing = false; }, state.cooldownMs);
+    setTimeout(() => { app.processing = false; }, app.cooldownMs);
   }
 }
 
-function onScanError(err) {
-  // Silencioso — ocurre constantemente mientras no hay QR en foco
-}
-
-function procesarRespuesta(data) {
-  if (data.status === "ok") {
-    setSemaforo("ok", data.nombre, `DNI ${data.dni} · Presentes: ${data.totalPresentes}`);
-    agregarPresente(data.nombre, data.dni);
-  } else if (data.status === "repetido") {
-    setSemaforo("warn", data.nombre, `Ya registrado · DNI ${data.dni}`);
-  } else {
-    // BUG 1 FIX: si el backend devuelve nombre, mostrarlo aunque sea error
-    const titulo = data.nombre || "Error";
-    setSemaforo("err", titulo, data.message || "Error desconocido");
-  }
-}
-
-// ── Semáforo ─────────────────────────────────────────────────
 function setSemaforo(tipo, nombre, sub) {
-  const sem  = document.getElementById("semaforo");
-  const dot  = document.getElementById("sem-dot");
-  const nom  = document.getElementById("sem-nombre");
-  const subEl = document.getElementById("sem-sub");
-
-  sem.className  = `semaforo ${tipo}`;
-  nom.textContent = nombre;
-  subEl.textContent = sub;
-
-  const icons = { ok: "✓", warn: "⚠", err: "✕", idle: "🎯" };
-  dot.textContent = icons[tipo] || "🎯";
+  document.getElementById("semaforo").className = `semaforo ${tipo}`;
+  document.getElementById("sem-dot").textContent = {ok:"✓",warn:"⚠",err:"✕",idle:"🎯"}[tipo]||"🎯";
+  document.getElementById("sem-nombre").textContent = nombre;
+  document.getElementById("sem-sub").textContent = sub;
 }
 
-// ── Barra de cooldown visual ──────────────────────────────────
-function iniciarCooldownBar() {
+function iniciarCooldown() {
   const fill = document.getElementById("cooldown-fill");
-  fill.style.width = "0%";
-  fill.style.transition = "none";
+  fill.style.width="0%"; fill.style.transition="none";
   requestAnimationFrame(() => {
-    fill.style.transition = `width ${state.cooldownMs}ms linear`;
-    fill.style.width = "100%";
+    fill.style.transition=`width ${app.cooldownMs}ms linear`;
+    fill.style.width="100%";
   });
-  setTimeout(() => { fill.style.width = "0%"; fill.style.transition = "none"; }, state.cooldownMs + 100);
+  setTimeout(() => { fill.style.width="0%"; fill.style.transition="none"; }, app.cooldownMs+100);
 }
 
 // ════════════════════════════════════════════════════════════
-//  LISTA DE PRESENTES + INASISTENCIAS
+//  PRESENTES + INASISTENCIAS
 // ════════════════════════════════════════════════════════════
-
-// BUG 3 FIX: recuperar lista desde backend al iniciar clase
 async function cargarPresentesDesdeBackend() {
-  if (!state.clase) return;
+  if (!app.clase) return;
   try {
-    const { curso, modalidad, materia, fecha } = state.clase;
+    const {curso,modalidad,materia,fecha} = app.clase;
     const url = `${ENDPOINT_URL}?action=getPresentes&curso=${encodeURIComponent(curso)}&modalidad=${encodeURIComponent(modalidad)}&materia=${encodeURIComponent(materia)}&fecha=${encodeURIComponent(fecha)}`;
-    const res  = await fetch(url, { redirect: "follow" });
+    const res  = await fetch(url, {redirect:"follow"});
     const data = await res.json();
     if (data.status !== "ok") return;
-
-    // Cargar presentes de hoy sin duplicar
-    (data.presentes || []).forEach(p => {
-      if (!state.presentes.find(x => x.dni === p.dni))
-        state.presentes.push({ nombre: p.nombre, dni: p.dni });
+    (data.presentes||[]).forEach(p => {
+      if (!app.presentes.find(x=>x.dni===p.dni)) app.presentes.push({nombre:p.nombre,dni:p.dni});
     });
     renderPresentes();
-
-    // BUG 4: cargar inasistencias
-    renderInasistencias(data.inasistencias || [], data.totalFechas || 0);
-
-  } catch(e) { console.warn("No se pudo cargar presentes:", e); }
+    renderInasistencias(data.inasistencias||[], data.totalFechas||0);
+  } catch(e) { console.warn(e); }
 }
 
-function agregarPresente(nombre, dni) {
-  if (state.presentes.find(p => p.dni === dni)) return;
-  state.presentes.unshift({ nombre, dni });
+function agregarPresente(nombre,dni) {
+  if (app.presentes.find(p=>p.dni===dni)) return;
+  app.presentes.unshift({nombre,dni});
   renderPresentes();
-  // Actualizar inasistencias en background
-  setTimeout(cargarPresentesDesdeBackend, 500);
+  setTimeout(cargarPresentesDesdeBackend, 600);
 }
 
 function renderPresentes() {
-  const list    = document.getElementById("presentes-list");
-  const counter = document.getElementById("counter");
-  const total   = state.presentes.length;
-  counter.textContent = total;
-
-  if (total === 0) {
-    list.innerHTML = '<div class="empty-state">Aún no hay presentes registrados</div>';
-    return;
-  }
-
-  list.innerHTML = state.presentes.map(p => {
-    const inicial = p.nombre.trim().charAt(0).toUpperCase();
-    return `
-      <div class="presente-item">
-        <div class="presente-avatar">${inicial}</div>
-        <span class="presente-nombre">${p.nombre}</span>
-        <span class="presente-dni">${p.dni}</span>
-      </div>`;
-  }).join("");
+  const list = document.getElementById("presentes-list");
+  const total = app.presentes.length;
+  document.getElementById("counter").textContent = total;
+  if (!total) { list.innerHTML='<div class="empty-state">Sin presentes registrados</div>'; return; }
+  list.innerHTML = app.presentes.map(p => `
+    <div class="presente-item">
+      <div class="presente-avatar">${p.nombre.charAt(0).toUpperCase()}</div>
+      <span class="presente-nombre">${p.nombre}</span>
+      <span class="presente-dni">${p.dni}</span>
+    </div>`).join("");
 }
 
-// BUG 4 FIX: renderizar tabla de inasistencias
 function renderInasistencias(lista, totalFechas) {
-  const el = document.getElementById("inasist-list");
+  const el  = document.getElementById("inasist-list");
   const lbl = document.getElementById("total-fechas-label");
-  lbl.textContent = `${totalFechas} clase${totalFechas !== 1 ? "s" : ""} registradas`;
-
-  if (!lista.length) {
-    el.innerHTML = '<div class="empty-state">Sin datos todavía</div>';
-    return;
-  }
-
-  // Ordenar por más ausencias primero
-  const sorted = [...lista].sort((a,b) => b.ausencias - a.ausencias);
-
+  lbl.textContent = `${totalFechas} clase${totalFechas!==1?"s":""} registradas`;
+  if (!lista.length) { el.innerHTML='<div class="empty-state">Sin datos</div>'; return; }
+  const sorted = [...lista].sort((a,b)=>b.ausencias-a.ausencias);
   el.innerHTML = sorted.map(p => {
-    const pct = totalFechas > 0 ? Math.round((p.ausencias / totalFechas) * 100) : 0;
-    const color = p.ausencias === 0 ? "var(--green)"
-                : p.ausencias <= 2  ? "var(--yellow)"
-                : "var(--red)";
-    const inicial = p.nombre.trim().charAt(0).toUpperCase();
-    return `
-      <div class="presente-item" style="flex-direction:column;align-items:stretch;gap:6px">
-        <div style="display:flex;align-items:center;gap:10px">
-          <div class="presente-avatar" style="background:${color}">${inicial}</div>
-          <span class="presente-nombre" style="flex:1">${p.nombre}</span>
-          <span style="font-size:13px;font-weight:700;color:${color}">${p.ausencias} aus.</span>
+    const pct   = totalFechas>0 ? Math.round((p.ausencias/totalFechas)*100) : 0;
+    const color = p.ausencias===0?"var(--green)":p.ausencias<=2?"var(--yellow)":"var(--red)";
+    return `<div class="presente-item" style="flex-direction:column;align-items:stretch;gap:6px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="presente-avatar" style="background:${color}">${p.nombre.charAt(0).toUpperCase()}</div>
+        <span class="presente-nombre" style="flex:1">${p.nombre}</span>
+        <span style="font-size:13px;font-weight:700;color:${color}">${p.ausencias} aus.</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="flex:1;height:4px;background:var(--border);border-radius:2px;overflow:hidden">
+          <div style="height:100%;width:${pct}%;background:${color};border-radius:2px"></div>
         </div>
-        <div style="display:flex;align-items:center;gap:8px">
-          <div style="flex:1;height:4px;background:var(--border);border-radius:2px;overflow:hidden">
-            <div style="height:100%;width:${pct}%;background:${color};border-radius:2px"></div>
-          </div>
-          <span style="font-size:11px;color:var(--text2);min-width:60px;text-align:right">${p.presencias}/${totalFechas} presente</span>
-        </div>
-      </div>`;
+        <span style="font-size:11px;color:var(--text2);min-width:60px;text-align:right">${p.presencias}/${totalFechas} pres.</span>
+      </div>
+    </div>`;
   }).join("");
 }
 
-// Sub-tabs dentro del panel presentes
-function switchSubtab(btn, panel) {
-  document.querySelectorAll("#panel-presentes button").forEach(b => {
-    b.style.background = "transparent";
-    b.style.color = "var(--text2)";
-  });
-  btn.style.background = "var(--surface)";
-  btn.style.color = "var(--text)";
-  document.getElementById("sub-hoy").style.display     = panel === "hoy"     ? "" : "none";
-  document.getElementById("sub-inasist").style.display = panel === "inasist" ? "" : "none";
+// ════════════════════════════════════════════════════════════
+//  PANEL DOCENTE — EN VIVO
+// ════════════════════════════════════════════════════════════
+function onDocCursoChange() {
+  poblarModalidades("doc-modalidad", document.getElementById("doc-curso").value, app.config);
+  document.getElementById("doc-materia").innerHTML='<option value="">— Materia —</option>';
+  document.getElementById("doc-materia").disabled=true;
+  validarFormDocente();
+}
+function onDocModalidadChange() {
+  poblarMaterias("doc-materia", document.getElementById("doc-curso").value, document.getElementById("doc-modalidad").value, app.config);
+  validarFormDocente();
+}
+function validarFormDocente() {
+  const ok = document.getElementById("doc-curso").value &&
+             document.getElementById("doc-modalidad").value &&
+             document.getElementById("doc-materia").value &&
+             document.getElementById("doc-fecha").value;
+  document.getElementById("btn-doc-cargar").disabled = !ok;
+}
+
+async function cargarPanelDocente() {
+  if (app.docTimer) clearInterval(app.docTimer);
+  document.getElementById("docente-panel").style.display = "block";
+  await actualizarPanelDocente();
+  app.docTimer = setInterval(actualizarPanelDocente, 15000);
+}
+
+async function actualizarPanelDocente() {
+  const curso    = document.getElementById("doc-curso").value;
+  const modalidad= document.getElementById("doc-modalidad").value;
+  const materia  = document.getElementById("doc-materia").value;
+  const fecha    = document.getElementById("doc-fecha").value;
+  try {
+    const url  = `${ENDPOINT_URL}?action=getPresentes&curso=${encodeURIComponent(curso)}&modalidad=${encodeURIComponent(modalidad)}&materia=${encodeURIComponent(materia)}&fecha=${encodeURIComponent(fecha)}`;
+    const res  = await fetch(url,{redirect:"follow"});
+    const data = await res.json();
+    if (data.status !== "ok") return;
+
+    const presentes = data.presentes || [];
+    const todos     = data.inasistencias || [];
+    const total     = todos.length;
+    const nPres     = presentes.length;
+    const nAus      = total - nPres;
+    const pct       = total>0 ? Math.round((nPres/total)*100) : 0;
+
+    document.getElementById("doc-total-presentes").textContent = nPres;
+    document.getElementById("doc-total-ausentes").textContent  = nAus;
+    document.getElementById("doc-total-alumnos").textContent   = total;
+    document.getElementById("doc-pct").textContent             = pct+"%";
+    document.getElementById("doc-pct").style.color = pct>=70?"var(--green)":pct>=50?"var(--yellow)":"var(--red)";
+    document.getElementById("doc-ultima-act").textContent      = "Actualizado: " + new Date().toLocaleTimeString("es-AR");
+
+    const presenteDnis = new Set(presentes.map(p=>p.dni));
+    app.docAlumnos = todos;
+    const list = document.getElementById("docente-list");
+    list.innerHTML = todos.sort((a,b)=>a.nombre.localeCompare(b.nombre)).map(a => {
+      const esPres = presenteDnis.has(a.dni);
+      return `<div class="docente-alumno ${esPres?"presente":"ausente"}">
+        <div class="presente-avatar" style="background:${esPres?"var(--green)":"var(--surface2)"}">
+          ${a.nombre.charAt(0).toUpperCase()}
+        </div>
+        <span style="font-size:13px;flex:1">${a.nombre}</span>
+        <span class="docente-hora">${esPres?"✓ Presente":"—"}</span>
+      </div>`;
+    }).join("");
+  } catch(e) { console.warn("Panel docente:", e); }
+}
+
+function detenerPanelDocente() {
+  if (app.docTimer) { clearInterval(app.docTimer); app.docTimer=null; }
+  document.getElementById("docente-panel").style.display="none";
 }
 
 // ════════════════════════════════════════════════════════════
-//  UTILIDADES
+//  INFORMES
 // ════════════════════════════════════════════════════════════
-function formatFechaDisplay(isoStr) {
-  if (!isoStr) return "";
-  const [yyyy, mm, dd] = isoStr.split("-");
-  return `${dd}/${mm}/${yyyy}`;
+function onInfCursoChange() {
+  poblarModalidades("inf-modalidad", document.getElementById("inf-curso").value, app.config);
+  document.getElementById("inf-materia").innerHTML='<option value="">— Materia —</option>';
+  document.getElementById("inf-materia").disabled=true;
+  validarFormInforme();
+}
+function onInfModalidadChange() {
+  poblarMaterias("inf-materia", document.getElementById("inf-curso").value, document.getElementById("inf-modalidad").value, app.config);
+  validarFormInforme();
+}
+function validarFormInforme() {
+  const ok = document.getElementById("inf-curso").value &&
+             document.getElementById("inf-modalidad").value &&
+             document.getElementById("inf-materia").value;
+  document.getElementById("btn-inf-meses").disabled = !ok;
+  document.getElementById("btn-inf-trim").disabled  = !ok;
+}
+
+async function generarInformeMeses() {
+  const curso    = document.getElementById("inf-curso").value;
+  const modalidad= document.getElementById("inf-modalidad").value;
+  const materia  = document.getElementById("inf-materia").value;
+  const btn = document.getElementById("btn-inf-meses");
+  btn.textContent="⏳ Generando..."; btn.disabled=true;
+  try {
+    const url  = `${ENDPOINT_URL}?action=getInformeMeses&curso=${encodeURIComponent(curso)}&modalidad=${encodeURIComponent(modalidad)}&materia=${encodeURIComponent(materia)}`;
+    const res  = await fetch(url,{redirect:"follow"});
+    const data = await res.json();
+    if (data.status !== "ok") throw new Error(data.message);
+    mostrarInformeMeses(data, curso, modalidad, materia);
+  } catch(e) { alert("Error: "+e.message); }
+  finally { btn.textContent="📅 Informe por meses"; btn.disabled=false; }
+}
+
+async function generarInformeTrimestres() {
+  const curso    = document.getElementById("inf-curso").value;
+  const modalidad= document.getElementById("inf-modalidad").value;
+  const materia  = document.getElementById("inf-materia").value;
+  const btn = document.getElementById("btn-inf-trim");
+  btn.textContent="⏳ Generando..."; btn.disabled=true;
+  try {
+    const url  = `${ENDPOINT_URL}?action=getInformePeriodos&curso=${encodeURIComponent(curso)}&modalidad=${encodeURIComponent(modalidad)}&materia=${encodeURIComponent(materia)}`;
+    const res  = await fetch(url,{redirect:"follow"});
+    const data = await res.json();
+    if (data.status !== "ok") throw new Error(data.message);
+    mostrarInformePeriodos(data, curso, modalidad, materia);
+  } catch(e) { alert("Error: "+e.message); }
+  finally { btn.textContent="📊 Informe por períodos"; btn.disabled=false; }
+}
+
+function encabezadoInforme(logoUrl, institucion, localidad, subtitulo, curso, modalidad, materia) {
+  return `
+  <div class="informe-encabezado">
+    ${logoUrl ? `<img class="informe-logo" src="${logoUrl}" onerror="this.style.display='none'">` : ""}
+    <div class="informe-inst-data">
+      <h2>${institucion||"Institución"}</h2>
+      <p>${localidad||""}</p>
+      <p><strong>Curso:</strong> ${curso}° año &nbsp;|&nbsp; <strong>Modalidad:</strong> ${modalidad}</p>
+      <p><strong>Espacio curricular:</strong> ${materia}</p>
+    </div>
+  </div>
+  <div class="informe-titulo">${subtitulo}</div>`;
+}
+
+function mostrarInformeMeses(data, curso, modalidad, materia) {
+  const {alumnos, meses, logoUrl, institucion, localidad} = data;
+  const mesesLabel = meses.map(m => {
+    const nombres = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+    const [y,m2] = m.split("-");
+    return nombres[parseInt(m2)-1]+" "+y;
+  });
+
+  let html = encabezadoInforme(logoUrl, institucion, localidad,
+    "Informe de inasistencias por mes — " + new Date().getFullYear(),
+    curso, modalidad, materia);
+
+  html += `<table class="informe-tabla">
+    <thead><tr>
+      <th style="width:30px">Nro</th>
+      <th>Apellido y nombre</th>
+      <th style="text-align:center">Total</th>
+      ${mesesLabel.map(m=>`<th style="text-align:center">${m}</th>`).join("")}
+    </tr></thead><tbody>`;
+
+  alumnos.forEach((a, i) => {
+    const altoTotal = a.totalInasistencias >= 10;
+    html += `<tr class="${altoTotal?"rojo":""}">
+      <td style="text-align:center">${i+1}</td>
+      <td>${a.nombre}</td>
+      <td style="text-align:center;font-weight:700">${a.totalInasistencias}</td>
+      ${meses.map(m => `<td style="text-align:center">${a.porMes[m]||0}</td>`).join("")}
+    </tr>`;
+  });
+
+  html += `</tbody></table>
+  <div class="informe-pie">
+    Total alumnos: ${alumnos.length} &nbsp;|&nbsp; Generado: ${new Date().toLocaleDateString("es-AR")}
+  </div>`;
+
+  document.getElementById("inf-contenido").innerHTML = html;
+  document.getElementById("inf-preview").style.display = "block";
+}
+
+function mostrarInformePeriodos(data, curso, modalidad, materia) {
+  const {alumnos, periodos, tipoPeriodo, logoUrl, institucion, localidad} = data;
+  const nomPeriodo = tipoPeriodo==="cuatrimestral" ? ["1° Cuatrimestre","2° Cuatrimestre"] :
+                    tipoPeriodo==="anual"          ? ["Año completo"] :
+                    ["1° Trimestre","2° Trimestre","3° Trimestre"];
+
+  let html = encabezadoInforme(logoUrl, institucion, localidad,
+    `Informe de asistencia por ${tipoPeriodo} — ${new Date().getFullYear()}`,
+    curso, modalidad, materia);
+
+  html += `<table class="informe-tabla">
+    <thead><tr>
+      <th style="width:30px">Nro</th>
+      <th>Apellido y nombre</th>
+      ${periodos.map((_,i) => `
+        <th colspan="3" style="text-align:center;background:#444">${nomPeriodo[i]||("Período "+(i+1))}</th>
+      `).join("")}
+    </tr>
+    <tr>
+      <th></th><th></th>
+      ${periodos.map(() => `
+        <th style="text-align:center;font-size:7px">Clases</th>
+        <th style="text-align:center;font-size:7px">Inasist.</th>
+        <th style="text-align:center;font-size:7px">% Asist.</th>
+      `).join("")}
+    </tr></thead><tbody>`;
+
+  alumnos.forEach((a, i) => {
+    html += `<tr>
+      <td style="text-align:center">${i+1}</td>
+      <td>${a.nombre}</td>
+      ${periodos.map((_,pi) => {
+        const p       = a.periodos[pi] || {clases:0, inasistencias:0, pct:100};
+        const critico = p.pct < 70;
+        const medio   = p.pct >= 70 && p.pct < 85;
+        const cls     = critico ? "rojo" : medio ? "amarillo" : "";
+        return `
+          <td style="text-align:center">${p.clases}</td>
+          <td style="text-align:center">${p.inasistencias}</td>
+          <td style="text-align:center;font-weight:700" class="${cls}">${p.pct}%</td>`;
+      }).join("")}
+    </tr>`;
+  });
+
+  html += `</tbody></table>
+  <div class="informe-pie" style="margin-top:6px">
+    <span style="display:inline-block;background:#fee2e2;color:#991b1b;padding:2px 6px;border-radius:3px;font-size:7px;margin-right:6px">■ Por debajo del 70%</span>
+    <span style="display:inline-block;background:#fef3c7;color:#92400e;padding:2px 6px;border-radius:3px;font-size:7px">■ Entre 70% y 85%</span>
+    &nbsp;|&nbsp; Total alumnos: ${alumnos.length} &nbsp;|&nbsp; Generado: ${new Date().toLocaleDateString("es-AR")}
+  </div>`;
+
+  document.getElementById("inf-contenido").innerHTML = html;
+  document.getElementById("inf-preview").style.display = "block";
+}
+
+function imprimirInforme() {
+  const contenido = document.getElementById("inf-contenido").innerHTML;
+  const win = window.open("","_blank","width=900,height=700");
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <style>
+      body{font-family:Arial,sans-serif;margin:0;padding:20mm;background:#fff;color:#000}
+      .informe-encabezado{display:flex;align-items:flex-start;gap:14px;border-bottom:2px solid #333;padding-bottom:12px;margin-bottom:16px}
+      .informe-logo{width:60px;height:60px;object-fit:contain}
+      .informe-inst-data h2{font-size:13px;font-weight:700;margin-bottom:2px}
+      .informe-inst-data p{font-size:10px;color:#333;line-height:1.5}
+      .informe-titulo{font-size:14px;font-weight:700;text-align:center;margin-bottom:14px;text-transform:uppercase;letter-spacing:.5px}
+      .informe-tabla{width:100%;border-collapse:collapse;font-size:9px}
+      .informe-tabla th{background:#333;color:#fff;padding:5px 6px;text-align:left;font-size:8px;text-transform:uppercase}
+      .informe-tabla td{padding:4px 6px;border-bottom:1px solid #eee;vertical-align:middle}
+      .informe-tabla tr:nth-child(even) td{background:#f8f8f8}
+      .rojo td,.informe-tabla .rojo{background:#fee2e2!important;color:#991b1b;font-weight:700}
+      .amarillo{background:#fef3c7!important;color:#92400e}
+      .informe-pie{margin-top:12px;font-size:8px;color:#666;text-align:right}
+    </style></head><body>${contenido}</body></html>`);
+  win.document.close();
+  setTimeout(() => { win.print(); win.close(); }, 500);
+}
+
+// ════════════════════════════════════════════════════════════
+//  GAFETES
+// ════════════════════════════════════════════════════════════
+function poblarCursosGafetes() {
+  const cursos = [...new Set(app.gafGrupos.map(g=>g.curso))].sort();
+  const sel = document.getElementById("gaf-curso");
+  sel.innerHTML = '<option value="">Todos</option>';
+  cursos.forEach(c => { const o=document.createElement("option"); o.value=c; o.textContent=c; sel.appendChild(o); });
+}
+
+function onGafCursoChange() {
+  const curso = document.getElementById("gaf-curso").value;
+  const sel   = document.getElementById("gaf-modalidad");
+  sel.innerHTML = '<option value="">Todas</option>';
+  const mods = [...new Set(app.gafGrupos.filter(g=>!curso||g.curso===curso).map(g=>g.modalidad))];
+  mods.forEach(m => { const o=document.createElement("option"); o.value=m; o.textContent=m; sel.appendChild(o); });
+}
+
+async function cargarGafetes() {
+  const curso    = document.getElementById("gaf-curso").value;
+  const modalidad= document.getElementById("gaf-modalidad").value;
+  const grid     = document.getElementById("gafetes-grid");
+  grid.innerHTML = `<div style="grid-column:1/-1;display:flex;flex-direction:column;align-items:center;gap:12px;padding:40px">
+    <div class="spinner"></div><p style="color:var(--text2)">Cargando gafetes...</p></div>`;
+  try {
+    let url = `${ENDPOINT_URL}?action=getGafetes`;
+    if (curso) url += `&curso=${encodeURIComponent(curso)}`;
+    const res  = await fetch(url, {redirect:"follow"});
+    const data = await res.json();
+    if (data.status !== "ok") throw new Error(data.message);
+    app.gafetes = data.gafetes;
+    app.gafVisibles = app.gafetes.filter(g => !modalidad || normalizar(g.modalidad)===normalizar(modalidad));
+    renderGafetes();
+  } catch(e) {
+    grid.innerHTML=`<div class="empty-state" style="grid-column:1/-1"><p style="color:var(--red)">Error: ${e.message}</p></div>`;
+  }
+}
+
+function renderGafetes() {
+  const grid  = document.getElementById("gafetes-grid");
+  const total = app.gafVisibles.length;
+  document.getElementById("gaf-count").textContent  = total;
+  document.getElementById("gaf-count").style.display= total?"":"none";
+  document.getElementById("gaf-stats").textContent  = total?`Mostrando ${total} gafete${total!==1?"s":""}`: "Sin resultados";
+  document.getElementById("gaf-btn-print").disabled = total===0;
+  document.getElementById("gaf-btn-pdf").disabled   = total===0;
+  document.getElementById("gaf-btn-zip").disabled   = total===0;
+  if (!total) { grid.innerHTML='<div class="empty-state" style="grid-column:1/-1"><p>Sin gafetes para este filtro</p></div>'; return; }
+  grid.innerHTML = app.gafVisibles.map((g,i) => `
+    <div class="gafete-wrap">
+      <div class="gafete-actions">
+        <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2);cursor:pointer">
+          <input type="checkbox" class="gafete-check" data-idx="${i}" checked style="accent-color:var(--accent)"> ZIP
+        </label>
+        <button class="gafete-action-btn" onclick="exportarPNG(${i})">⬇ PNG</button>
+      </div>
+      ${buildGafete(g,i)}
+    </div>`).join("");
+}
+
+function buildGafete(g, idx) {
+  const logo = g.logoUrl ? `<img class="gafete-logo" src="${g.logoUrl}" onerror="this.style.display='none'">` : `<div class="gafete-logo-ph"></div>`;
+  const foto = g.fotoUrl ? `<img style="width:100%;height:100%;object-fit:cover" src="${g.fotoUrl}" onerror="this.parentElement.innerHTML='<div class=gafete-img-ph>👤</div>'">` : `<div class="gafete-img-ph">👤</div>`;
+  const qr   = g.qrUrl   ? `<img style="width:100%;height:100%;object-fit:contain" src="${g.qrUrl}">` : "";
+  return `<div class="gafete" id="gafete-${idx}">
+    <div class="gafete-header" style="background:${g.colorPpal}">${logo}
+      <div class="gafete-inst-info">
+        <div class="gafete-inst-name">${g.institucion||""}</div>
+        <div class="gafete-inst-loc">${g.localidad||""}</div>
+      </div>
+    </div>
+    <div class="gafete-body">
+      <div class="gafete-img-box">${qr}</div>
+      <div class="gafete-info">
+        <div class="gafete-nombre">${g.nombre}</div>
+        <div class="gafete-dni">DNI: ${g.dni}</div>
+      </div>
+      <div class="gafete-img-box">${foto}</div>
+    </div>
+    <div class="gafete-footer" style="background:${g.colorSec}">
+      <span class="gafete-curso-badge">Curso: ${g.curso}</span>
+      <span class="gafete-modal-text">${g.modalidad}</span>
+    </div>
+  </div>`;
+}
+
+// ── Proxy base64 ─────────────────────────────────────────────
+async function cargarImgBase64(url) {
+  if (!url || url.startsWith("data:")) return url;
+  if (app.imgCache[url]) return app.imgCache[url];
+  try {
+    const res  = await fetch(`${ENDPOINT_URL}?action=proxyImg&url=${encodeURIComponent(url)}`,{redirect:"follow"});
+    const data = await res.json();
+    if (data.status==="ok"&&data.b64) {
+      const b64 = `data:${data.mime};base64,${data.b64}`;
+      app.imgCache[url] = b64;
+      return b64;
+    }
+  } catch(e) { console.warn(e); }
+  return url;
+}
+
+async function capturarGafete(el) {
+  const W = el.offsetWidth, H = el.offsetHeight;
+  const imgEls = [...el.querySelectorAll("img")];
+  const srcs   = imgEls.map(img => img.getAttribute("src")||"");
+  const b64s   = await Promise.all(srcs.map(s => cargarImgBase64(s)));
+  const wrapper = document.createElement("div");
+  wrapper.style.cssText = `position:fixed;left:-9999px;top:0;width:${W}px;height:${H}px;overflow:hidden`;
+  document.body.appendChild(wrapper);
+  try {
+    let html = el.outerHTML;
+    srcs.forEach((src,i) => {
+      if (src&&b64s[i]&&b64s[i].startsWith("data:")) {
+        html = html.split(src).join(b64s[i]);
+      }
+    });
+    wrapper.innerHTML = html;
+    const clone = wrapper.firstElementChild;
+    clone.style.width=W+"px"; clone.style.height=H+"px";
+    await Promise.all([...clone.querySelectorAll("img")].map(img =>
+      img.complete ? Promise.resolve() : new Promise(r=>{img.onload=r;img.onerror=r;setTimeout(r,3000)})
+    ));
+    await new Promise(r=>setTimeout(r,100));
+    return await html2canvas(clone,{scale:3,useCORS:false,allowTaint:true,backgroundColor:"#ffffff",logging:false});
+  } finally {
+    document.body.removeChild(wrapper);
+  }
+}
+
+async function exportarPNG(idx) {
+  const el  = document.getElementById(`gafete-${idx}`);
+  const btn = el?.closest(".gafete-wrap")?.querySelector(".gafete-action-btn");
+  if (btn) { btn.textContent="..."; btn.disabled=true; }
+  try {
+    const cvs  = await capturarGafete(el);
+    const link = document.createElement("a");
+    link.download = `gafete_${app.gafVisibles[idx].nombre.replace(/\s+/g,"_").replace(/[^a-zA-Z0-9_]/g,"")}.png`;
+    link.href     = cvs.toDataURL("image/png");
+    link.click();
+  } catch(e) { alert("Error PNG: "+e.message); }
+  finally { if (btn) { btn.textContent="⬇ PNG"; btn.disabled=false; } }
+}
+
+async function exportarZIP() {
+  const checks  = [...document.querySelectorAll(".gafete-check:checked")];
+  const indices = checks.map(c=>parseInt(c.dataset.idx));
+  if (!indices.length) { alert("No hay gafetes seleccionados"); return; }
+  const btn = document.getElementById("gaf-btn-zip");
+  btn.disabled=true;
+  try {
+    const zip = new JSZip().folder("gafetes");
+    for (let i=0;i<indices.length;i++) {
+      btn.textContent=`🗜 ${i+1}/${indices.length}`;
+      const el  = document.getElementById(`gafete-${indices[i]}`);
+      const cvs = await capturarGafete(el);
+      const blob= await new Promise(r=>cvs.toBlob(r,"image/png"));
+      const nom = app.gafVisibles[indices[i]].nombre.replace(/\s+/g,"_").replace(/[^a-zA-Z0-9_]/g,"");
+      zip.file(`${String(i+1).padStart(3,"0")}_${nom}.png`, blob);
+    }
+    const zipBlob = await zip.generateAsync({type:"blob"});
+    const link = document.createElement("a");
+    const cur  = document.getElementById("gaf-curso").value    || "todos";
+    const mod  = document.getElementById("gaf-modalidad").value || "todas";
+    link.download = `gafetes_${cur}_${mod}.zip`;
+    link.href     = URL.createObjectURL(zipBlob);
+    link.click();
+    URL.revokeObjectURL(link.href);
+  } catch(e) { alert("Error ZIP: "+e.message); }
+  finally { btn.textContent="🗜 ZIP"; btn.disabled=false; }
+}
+
+function imprimirGafetes() {
+  if (!app.gafVisibles.length) return;
+  const area = document.getElementById("print-area");
+  area.innerHTML="";
+  for (let i=0;i<app.gafVisibles.length;i+=8) {
+    const pg = document.createElement("div");
+    pg.className="print-page";
+    app.gafVisibles.slice(i,i+8).forEach((g,j)=>{ pg.innerHTML+=buildGafete(g,i+j); });
+    area.appendChild(pg);
+  }
+  area.style.display="block";
+  window.print();
+  area.style.display="none";
+}
+
+async function exportarPDF() {
+  const btn = document.getElementById("gaf-btn-pdf");
+  btn.textContent="⏳ Generando..."; btn.disabled=true;
+  try {
+    const {jsPDF} = window.jspdf;
+    const pdf = new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
+    const A4W=210,A4H=297,GW=90,GH=60,COLS=2,ROWS=4,PPG=COLS*ROWS;
+    const MX=(A4W-COLS*GW)/2, MY=10;
+    const GAP=(A4H-MY*2-ROWS*GH)/(ROWS-1);
+    const tmp = document.createElement("div");
+    tmp.style.cssText="position:fixed;left:-9999px;top:0;pointer-events:none";
+    document.body.appendChild(tmp);
+    const canvases=[];
+    for (let i=0;i<app.gafVisibles.length;i++) {
+      btn.textContent=`⏳ ${i+1}/${app.gafVisibles.length}`;
+      const w=document.createElement("div");
+      w.innerHTML=buildGafete(app.gafVisibles[i],`pdf_${i}`);
+      tmp.appendChild(w);
+      const el=w.querySelector(".gafete");
+      const cvs=await capturarGafete(el);
+      canvases.push(cvs);
+      w.remove();
+    }
+    tmp.remove();
+    canvases.forEach((cvs,i) => {
+      const pos=i%PPG;
+      if (pos===0&&i>0) pdf.addPage();
+      const col=pos%COLS, row=Math.floor(pos/COLS);
+      const x=MX+col*GW, y=MY+row*(GH+GAP);
+      pdf.addImage(cvs.toDataURL("image/jpeg",.92),"JPEG",x,y,GW,GH);
+    });
+    const cur=document.getElementById("gaf-curso").value||"todos";
+    const mod=document.getElementById("gaf-modalidad").value||"todas";
+    pdf.save(`gafetes_${cur}_${mod}.pdf`);
+  } catch(e) { alert("Error PDF: "+e.message); }
+  finally { btn.textContent="⬇ PDF"; btn.disabled=false; }
+}
+
+// ════════════════════════════════════════════════════════════
+//  UTILS
+// ════════════════════════════════════════════════════════════
+function fmtFecha(iso) {
+  if (!iso) return "";
+  const [y,m,d] = iso.split("-");
+  return `${d}/${m}/${y}`;
 }
 </script>
 </body>
