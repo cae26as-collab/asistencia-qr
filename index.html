@@ -175,19 +175,21 @@ select:focus,input[type="date"]:focus{border-color:var(--accent)}
 }
 
 /* ── INFORME PDF PRINT ── */
-.informe-preview{background:#fff;color:#000;font-family:Arial,sans-serif;padding:20mm;width:210mm;margin:0 auto}
-.informe-encabezado{display:flex;align-items:flex-start;gap:14px;border-bottom:2px solid #333;padding-bottom:12px;margin-bottom:16px}
-.informe-logo{width:60px;height:60px;object-fit:contain}
-.informe-inst-data h2{font-size:13px;font-weight:700;color:#000;margin-bottom:2px}
-.informe-inst-data p{font-size:10px;color:#333;line-height:1.5}
-.informe-titulo{font-size:14px;font-weight:700;text-align:center;margin-bottom:14px;text-transform:uppercase;letter-spacing:.5px}
+.informe-preview{background:#fff;color:#000;font-family:Arial,sans-serif;padding:16mm 20mm;width:210mm;margin:0 auto}
+.informe-encabezado{display:flex;align-items:flex-start;gap:16px;padding-bottom:10px;margin-bottom:0}
+.informe-logo{width:56px;height:56px;object-fit:contain;flex-shrink:0;border:1px solid #eee;border-radius:4px;padding:2px}
+.informe-inst-data{flex:1}
+.informe-inst-data h2{font-size:12px;font-weight:700;color:#000;margin-bottom:3px;line-height:1.3}
+.informe-inst-data p{font-size:9px;color:#333;line-height:1.6;margin:0}
+.informe-barra-color{height:4px;border-radius:2px;margin:10px 0 8px}
+.informe-titulo{font-size:13px;font-weight:700;text-align:center;margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px;color:#000}
 .informe-tabla{width:100%;border-collapse:collapse;font-size:9px}
-.informe-tabla th{background:#333;color:#fff;padding:5px 6px;text-align:left;font-size:8px;text-transform:uppercase}
+.informe-tabla th{color:#fff;padding:5px 6px;text-align:left;font-size:7.5px;text-transform:uppercase}
 .informe-tabla td{padding:4px 6px;border-bottom:1px solid #eee;vertical-align:middle}
 .informe-tabla tr:nth-child(even) td{background:#f8f8f8}
-.informe-tabla .rojo{background:#fee2e2!important;color:#991b1b;font-weight:700}
-.informe-tabla .amarillo{background:#fef3c7!important;color:#92400e}
-.informe-pie{margin-top:12px;font-size:8px;color:#666;text-align:right}
+.informe-tabla .rojo td,.rojo{background:#fee2e2!important;color:#991b1b;font-weight:700}
+.informe-tabla .amarillo td,.amarillo{background:#fef3c7!important;color:#92400e}
+.informe-pie{margin-top:10px;font-size:8px;color:#666;text-align:right}
 </style>
 </head>
 <body>
@@ -898,18 +900,21 @@ async function generarInformeTrimestres() {
   finally { btn.textContent="📊 Informe por períodos"; btn.disabled=false; }
 }
 
-function encabezadoInforme(logoUrl, institucion, localidad, subtitulo, curso, modalidad, materia) {
+function encabezadoInforme(logoUrl, institucion, localidad, subtitulo, curso, modalidad, materia, colorPpal, docente) {
+  const color = colorPpal || "#333333";
   return `
   <div class="informe-encabezado">
-    ${logoUrl ? `<img class="informe-logo" src="${logoUrl}" onerror="this.style.display='none'">` : ""}
+    ${logoUrl ? `<img class="informe-logo" src="${logoUrl}" onerror="this.style.display='none'">` : `<div style="width:56px;height:56px;flex-shrink:0;background:#f0f0f0;border-radius:4px;border:1px solid #ddd"></div>`}
     <div class="informe-inst-data">
       <h2>${institucion||"Institución"}</h2>
       <p>${localidad||""}</p>
       <p><strong>Curso:</strong> ${curso}° año &nbsp;|&nbsp; <strong>Modalidad:</strong> ${modalidad}</p>
       <p><strong>Espacio curricular:</strong> ${materia}</p>
+      ${docente ? `<p><strong>Docente:</strong> ${docente}</p>` : ""}
     </div>
   </div>
-  <div class="informe-titulo">${subtitulo}</div>`;
+  <div class="informe-barra-color" style="background:${color}"></div>
+  <div class="informe-titulo" style="border-bottom:2px solid ${color};padding-bottom:6px">${subtitulo}</div>`;
 }
 
 function mostrarInformeMeses(data, curso, modalidad, materia) {
@@ -922,14 +927,15 @@ function mostrarInformeMeses(data, curso, modalidad, materia) {
 
   let html = encabezadoInforme(logoUrl, institucion, localidad,
     "Informe de inasistencias por mes — " + new Date().getFullYear(),
-    curso, modalidad, materia);
+    curso, modalidad, materia, data.colorPpal, data.docente);
 
+  const thStyle = `background:${data.colorPpal||"#333"}`;
   html += `<table class="informe-tabla">
     <thead><tr>
-      <th style="width:30px">Nro</th>
-      <th>Apellido y nombre</th>
-      <th style="text-align:center">Total</th>
-      ${mesesLabel.map(m=>`<th style="text-align:center">${m}</th>`).join("")}
+      <th style="width:30px;${thStyle}">Nro</th>
+      <th style="${thStyle}">Apellido y nombre</th>
+      <th style="text-align:center;${thStyle}">Total</th>
+      ${mesesLabel.map(m=>`<th style="text-align:center;${thStyle}">${m}</th>`).join("")}
     </tr></thead><tbody>`;
 
   alumnos.forEach((a, i) => {
@@ -959,22 +965,23 @@ function mostrarInformePeriodos(data, curso, modalidad, materia) {
 
   let html = encabezadoInforme(logoUrl, institucion, localidad,
     `Informe de asistencia por ${tipoPeriodo} — ${new Date().getFullYear()}`,
-    curso, modalidad, materia);
+    curso, modalidad, materia, data.colorPpal, data.docente);
 
+  const thStyleT = `background:${data.colorPpal||"#333"}`;
   html += `<table class="informe-tabla">
     <thead><tr>
-      <th style="width:30px">Nro</th>
-      <th>Apellido y nombre</th>
+      <th style="width:30px;${thStyleT}">Nro</th>
+      <th style="${thStyleT}">Apellido y nombre</th>
       ${periodos.map((_,i) => `
-        <th colspan="3" style="text-align:center;background:#444">${nomPeriodo[i]||("Período "+(i+1))}</th>
+        <th colspan="3" style="text-align:center;${thStyleT};opacity:${i%2===0?1:0.85}">${nomPeriodo[i]||("Período "+(i+1))}</th>
       `).join("")}
     </tr>
     <tr>
-      <th></th><th></th>
+      <th style="${thStyleT};opacity:.7"></th><th style="${thStyleT};opacity:.7"></th>
       ${periodos.map(() => `
-        <th style="text-align:center;font-size:7px">Clases</th>
-        <th style="text-align:center;font-size:7px">Inasist.</th>
-        <th style="text-align:center;font-size:7px">% Asist.</th>
+        <th style="text-align:center;font-size:7px;${thStyleT};opacity:.7">Clases</th>
+        <th style="text-align:center;font-size:7px;${thStyleT};opacity:.7">Inasist.</th>
+        <th style="text-align:center;font-size:7px;${thStyleT};opacity:.7">% Asist.</th>
       `).join("")}
     </tr></thead><tbody>`;
 
@@ -1132,31 +1139,152 @@ async function cargarImgBase64(url) {
 }
 
 async function capturarGafete(el) {
-  const W = el.offsetWidth, H = el.offsetHeight;
-  const imgEls = [...el.querySelectorAll("img")];
-  const srcs   = imgEls.map(img => img.getAttribute("src")||"");
-  const b64s   = await Promise.all(srcs.map(s => cargarImgBase64(s)));
-  const wrapper = document.createElement("div");
-  wrapper.style.cssText = `position:fixed;left:-9999px;top:0;width:${W}px;height:${H}px;overflow:hidden`;
-  document.body.appendChild(wrapper);
-  try {
-    let html = el.outerHTML;
-    srcs.forEach((src,i) => {
-      if (src&&b64s[i]&&b64s[i].startsWith("data:")) {
-        html = html.split(src).join(b64s[i]);
-      }
+  const SCALE = 3;
+  const W = el.offsetWidth;
+  const H = el.offsetHeight;
+
+  // Leer datos del DOM
+  const header   = el.querySelector(".gafete-header");
+  const footer   = el.querySelector(".gafete-footer");
+  const colorP   = header?.style.background || "#3d5a99";
+  const colorS   = footer?.style.background || "#7ec8e3";
+  const nombre   = el.querySelector(".gafete-nombre")?.textContent?.trim() || "";
+  const dniTxt   = el.querySelector(".gafete-dni")?.textContent?.trim()    || "";
+  const instName = el.querySelector(".gafete-inst-name")?.textContent?.trim() || "";
+  const instLoc  = el.querySelector(".gafete-inst-loc")?.textContent?.trim()  || "";
+  const cursoTxt = el.querySelector(".gafete-curso-badge")?.textContent?.trim() || "";
+  const modalTxt = el.querySelector(".gafete-modal-text")?.textContent?.trim()  || "";
+
+  const logoEl = el.querySelector(".gafete-header img");
+  const imgBoxes = [...el.querySelectorAll(".gafete-img-box img")];
+  const qrEl   = imgBoxes[0] || null;
+  const fotoEl = imgBoxes[1] || null;
+
+  const [logoB64, qrB64, fotoB64] = await Promise.all([
+    cargarImgBase64(logoEl?.getAttribute("src") || ""),
+    cargarImgBase64(qrEl?.getAttribute("src")   || ""),
+    cargarImgBase64(fotoEl?.getAttribute("src") || ""),
+  ]);
+
+  function loadImg(src) {
+    return new Promise(res => {
+      if (!src || !src.startsWith("data:")) return res(null);
+      const i = new Image(); i.onload=()=>res(i); i.onerror=()=>res(null); i.src=src;
     });
-    wrapper.innerHTML = html;
-    const clone = wrapper.firstElementChild;
-    clone.style.width=W+"px"; clone.style.height=H+"px";
-    await Promise.all([...clone.querySelectorAll("img")].map(img =>
-      img.complete ? Promise.resolve() : new Promise(r=>{img.onload=r;img.onerror=r;setTimeout(r,3000)})
-    ));
-    await new Promise(r=>setTimeout(r,100));
-    return await html2canvas(clone,{scale:3,useCORS:false,allowTaint:true,backgroundColor:"#ffffff",logging:false});
-  } finally {
-    document.body.removeChild(wrapper);
   }
+  const [logoImg, qrImg, fotoImg] = await Promise.all([loadImg(logoB64), loadImg(qrB64), loadImg(fotoB64)]);
+
+  const canvas = document.createElement("canvas");
+  canvas.width  = W * SCALE;
+  canvas.height = H * SCALE;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(SCALE, SCALE);
+
+  function rr(x,y,w,h,r) {
+    ctx.beginPath();
+    ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y);
+    ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+    ctx.lineTo(x+w,y+h-r);
+    ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+    ctx.lineTo(x+r,y+h);
+    ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+    ctx.lineTo(x,y+r);
+    ctx.quadraticCurveTo(x,y,x+r,y);
+    ctx.closePath();
+  }
+
+  const headerH=50, footerH=26;
+  const pad=10, imgSz=78;
+  const bodyY=headerH, bodyH=H-headerH-footerH;
+  const imgY=bodyY+(bodyH-imgSz)/2;
+
+  // Fondo blanco
+  ctx.fillStyle="#ffffff"; rr(0,0,W,H,10); ctx.fill();
+
+  // Header
+  ctx.fillStyle=colorP; rr(0,0,W,headerH,10); ctx.fill();
+  ctx.fillStyle=colorP; ctx.fillRect(0,8,W,headerH-8);
+
+  // Logo
+  if (logoImg) {
+    const ls=32, lx=pad, ly=(headerH-ls)/2;
+    ctx.save(); rr(lx,ly,ls,ls,4); ctx.clip();
+    ctx.drawImage(logoImg,lx,ly,ls,ls); ctx.restore();
+  }
+
+  // Textos header
+  ctx.fillStyle="#ffffff";
+  ctx.font="bold 8px Arial,sans-serif";
+  const maxW=W-pad*2-38;
+  let instTxt=instName;
+  while(ctx.measureText(instTxt).width>maxW&&instTxt.length>0) instTxt=instTxt.slice(0,-1);
+  if(instTxt!==instName) instTxt=instTxt.slice(0,-1)+"…";
+  ctx.fillText(instTxt, pad+38, headerH*0.36);
+  ctx.font="7px Arial,sans-serif"; ctx.globalAlpha=.85;
+  ctx.fillText(instLoc, pad+38, headerH*0.66); ctx.globalAlpha=1;
+
+  // Body
+  ctx.fillStyle="#ffffff"; ctx.fillRect(0,bodyY,W,bodyH);
+
+  function drawBox(x,y,sz,img,cover) {
+    ctx.save();
+    ctx.shadowColor="rgba(0,0,0,0.13)"; ctx.shadowBlur=4;
+    ctx.shadowOffsetX=1.5; ctx.shadowOffsetY=1.5;
+    ctx.fillStyle="#ffffff"; rr(x,y,sz,sz,5); ctx.fill();
+    ctx.restore();
+    if(img) {
+      ctx.save(); rr(x+1.5,y+1.5,sz-3,sz-3,4); ctx.clip();
+      if(cover) {
+        const aspect=img.width/img.height;
+        let sw=sz-3,sh=sz-3,sx=x+1.5,sy=y+1.5;
+        if(aspect>1){sh=(sz-3)/aspect;sy+=((sz-3)-sh)/2;}
+        else{sw=(sz-3)*aspect;sx+=((sz-3)-sw)/2;}
+        ctx.drawImage(img,sx,sy,sw,sh);
+      } else { ctx.drawImage(img,x+1.5,y+1.5,sz-3,sz-3); }
+      ctx.restore();
+    }
+    ctx.strokeStyle="#dddddd"; ctx.lineWidth=1.5;
+    rr(x,y,sz,sz,5); ctx.stroke();
+  }
+
+  drawBox(pad, imgY, imgSz, qrImg, false);
+  drawBox(W-pad-imgSz, imgY, imgSz, fotoImg, true);
+
+  // Nombre
+  const infoX=pad+imgSz+8;
+  const infoW=W-infoX-imgSz-pad-8;
+  ctx.fillStyle="#1a1814"; ctx.font="bold 10px Arial,sans-serif";
+  const words=nombre.split(" "); let line="", ly2=bodyY+bodyH*0.36;
+  for(const w of words){
+    const t=line?line+" "+w:w;
+    if(ctx.measureText(t).width>infoW&&line){ctx.fillText(line,infoX,ly2);line=w;ly2+=13;}
+    else line=t;
+  }
+  if(line) ctx.fillText(line,infoX,ly2);
+  ctx.font="8.5px Arial,sans-serif"; ctx.fillStyle="#666";
+  ctx.fillText(dniTxt,infoX,ly2+15);
+
+  // Footer
+  const fy=H-footerH;
+  ctx.fillStyle=colorS; ctx.fillRect(0,fy,W,footerH);
+  rr(0,fy,W,footerH,10); ctx.fill();
+  ctx.fillStyle=colorS; ctx.fillRect(0,fy,W,footerH-8);
+
+  ctx.fillStyle="rgba(255,255,255,0.25)"; rr(pad,fy+5,68,16,8); ctx.fill();
+  ctx.fillStyle="#ffffff"; ctx.font="bold 7px Arial,sans-serif";
+  ctx.fillText(cursoTxt,pad+5,fy+16);
+
+  ctx.textAlign="right"; ctx.font="bold 6px Arial,sans-serif";
+  ctx.fillStyle="rgba(255,255,255,0.9)";
+  const mw2=W*0.42; const mwords=modalTxt.split(" ");
+  let ml=""; const mlines=[];
+  for(const w of mwords){const t=ml?ml+" "+w:w;if(ctx.measureText(t).width>mw2&&ml){mlines.push(ml);ml=w;}else ml=t;}
+  if(ml) mlines.push(ml);
+  const my0=mlines.length>1?fy+10:fy+16;
+  mlines.forEach((l,i)=>ctx.fillText(l,W-pad,my0+i*8));
+  ctx.textAlign="left";
+
+  return canvas;
 }
 
 async function exportarPNG(idx) {
