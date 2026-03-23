@@ -443,7 +443,7 @@
 // ════════════════════════════════════════════════════════════
 //  CONFIGURACIÓN — REEMPLAZÁ ESTA URL CON TU DEPLOY DE GAS
 // ════════════════════════════════════════════════════════════
-const ENDPOINT_URL = "https://script.google.com/macros/s/AKfycbyG29YuT-tqDyvcOko6RV0ca4EkCFwkzu445qQTOeAMHEe4tjmpYA6RLmTxlpd2VjdBkg/exec";
+const ENDPOINT_URL = "https://script.google.com/macros/s/AKfycbw6UaOo9tZ7rmyyhsH2iBT4on2yTubf3t-rfqHuZcF3pkXvhRD71cYHMUHSS0AoCUAeAg/exec";
 
 // ════════════════════════════════════════════════════════════
 //  ESTADO DE LA APP
@@ -484,7 +484,10 @@ window.addEventListener("DOMContentLoaded", async () => {
 // ── Cargar CONFIG_ASISTENCIA desde el backend ────────────────
 async function cargarConfig() {
   try {
-    const res = await fetch(`${ENDPOINT_URL}?action=getConfig`);
+    // redirect:'follow' es obligatorio — GAS redirige antes de responder
+    const res = await fetch(`${ENDPOINT_URL}?action=getConfig`, {
+      redirect: "follow",
+    });
     const data = await res.json();
 
     if (data.status !== "ok" || !data.config) throw new Error(data.message || "Sin config");
@@ -670,9 +673,11 @@ async function onScanExito(dni) {
     };
 
     const res = await fetch(ENDPOINT_URL, {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify(body),
+      method:   "POST",
+      redirect: "follow",
+      // Content-Type: text/plain evita el preflight OPTIONS que GAS no maneja
+      headers:  { "Content-Type": "text/plain;charset=UTF-8" },
+      body:     JSON.stringify(body),
     });
 
     const data = await res.json();
