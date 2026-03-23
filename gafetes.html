@@ -733,55 +733,194 @@ async function cargarImgBase64(url) {
 }
 
 async function capturarGafete(el) {
+  const SCALE = 3;
   const W = el.offsetWidth;
   const H = el.offsetHeight;
 
-  // Recoger src originales ANTES de tocar el DOM
-  const imgEls  = [...el.querySelectorAll("img")];
-  const srcs    = imgEls.map(img => img.getAttribute("src") || "");
+  // Leer datos del DOM
+  const header    = el.querySelector(".gafete-header");
+  const footer    = el.querySelector(".gafete-footer");
+  const colorPpal = header?.style.background || "#3d5a99";
+  const colorSec  = footer?.style.background || "#7ec8e3";
+  const nombre    = el.querySelector(".gafete-nombre")?.textContent?.trim() || "";
+  const dniTxt    = el.querySelector(".gafete-dni")?.textContent?.trim()    || "";
+  const instName  = el.querySelector(".gafete-inst-name")?.textContent?.trim() || "";
+  const instLoc   = el.querySelector(".gafete-inst-loc")?.textContent?.trim()  || "";
+  const cursoTxt  = el.querySelector(".gafete-curso-badge")?.textContent?.trim() || "";
+  const modalTxt  = el.querySelector(".gafete-modal-text")?.textContent?.trim()  || "";
 
-  // Descargar todas como base64 via proxy en paralelo
-  const b64s = await Promise.all(srcs.map(src => cargarImgBase64(src)));
+  // URLs de imágenes
+  const logoSrc = el.querySelector(".gafete-logo")?.getAttribute("src") || "";
+  const fotoSrc = el.querySelector(".gafete-foto")?.getAttribute("src") || "";
+  const qrSrc   = el.querySelector(".gafete-qr")?.getAttribute("src")   || "";
 
-  // Crear wrapper invisible
-  const wrapper = document.createElement("div");
-  wrapper.style.cssText = "position:fixed;left:-9999px;top:0;width:" + W + "px;height:" + H + "px;overflow:hidden;";
-  document.body.appendChild(wrapper);
+  // Descargar imágenes via proxy como base64
+  const [logoB64, fotoB64, qrB64] = await Promise.all([
+    cargarImgBase64(logoSrc),
+    cargarImgBase64(fotoSrc),
+    cargarImgBase64(qrSrc),
+  ]);
 
-  try {
-    // Construir HTML del clon con src=base64 directo — nunca pasa por URL externa
-    const cloneHTML = el.outerHTML;
-    // Reemplazar cada src por su base64 correspondiente
-    let patchedHTML = cloneHTML;
-    srcs.forEach((src, i) => {
-      if (src && b64s[i] && b64s[i].startsWith("data:")) {
-        // Escapar caracteres especiales de la URL para usarla como pattern
-        const escaped = src.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        patchedHTML = patchedHTML.replace(new RegExp(escaped, "g"), b64s[i]);
-      }
+  // Cargar como objetos Image
+  function loadImg(src) {
+    return new Promise(res => {
+      if (!src) return res(null);
+      const i = new Image();
+      i.onload  = () => res(i);
+      i.onerror = () => res(null);
+      i.src = src;
     });
-
-    wrapper.innerHTML = patchedHTML;
-    const cloneEl = wrapper.firstElementChild;
-    cloneEl.style.width  = W + "px";
-    cloneEl.style.height = H + "px";
-
-    // Esperar que las imágenes base64 terminen de cargar en el clon
-    await Promise.all([...cloneEl.querySelectorAll("img")].map(img =>
-      img.complete ? Promise.resolve() : new Promise(r => { img.onload = r; img.onerror = r; setTimeout(r, 3000); })
-    ));
-    await new Promise(r => setTimeout(r, 100));
-
-    return await html2canvas(cloneEl, {
-      scale: 3,
-      useCORS: false,
-      allowTaint: true,
-      backgroundColor: "#ffffff",
-      logging: false,
-    });
-  } finally {
-    document.body.removeChild(wrapper);
   }
+  const [logoImg, fotoImg, qrImg] = await Promise.all([
+    loadImg(logoB64), loadImg(fotoB64), loadImg(qrB64)
+  ]);
+
+  // Crear canvas
+  const canvas = document.createElement("canvas");
+  canvas.width  = W * SCALE;
+  canvas.height = H * SCALE;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(SCALE, SCALE);
+
+  // Helpers
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
+  const headerH = 52;
+  const footerH = 28;
+  const pad     = 12;
+  const imgSz   = 86;
+  const bodyY   = headerH;
+  const bodyH   = H - headerH - footerH;
+  const imgY    = bodyY + (bodyH - imgSz) / 2;
+
+  // Fondo blanco con bordes redondeados
+  ctx.fillStyle = "#ffffff";
+  roundRect(0, 0, W, H, 10);
+  ctx.fill();
+
+  // Header
+  ctx.fillStyle = colorPpal;
+  roundRect(0, 0, W, headerH, 10);
+  ctx.fill();
+  ctx.fillStyle = colorPpal;
+  ctx.fillRect(0, 10, W, headerH - 10);
+
+  // Logo en header
+  if (logoImg) {
+    const lSz = 34, lX = pad, lY = (headerH - lSz) / 2;
+    ctx.save();
+    roundRect(lX, lY, lSz, lSz, 4);
+    ctx.clip();
+    ctx.drawImage(logoImg, lX, lY, lSz, lSz);
+    ctx.restore();
+  }
+
+  // Textos header
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 8px Arial, sans-serif";
+  ctx.fillText(instName.substring(0, 45), pad + 42, headerH * 0.36);
+  ctx.font = "7px Arial, sans-serif";
+  ctx.globalAlpha = 0.85;
+  ctx.fillText(instLoc, pad + 42, headerH * 0.65);
+  ctx.globalAlpha = 1;
+
+  // Body blanco
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, bodyY, W, bodyH);
+
+  // Función para dibujar imagen con borde y sombra
+  function drawBox(x, y, sz, img) {
+    ctx.save();
+    ctx.shadowColor   = "rgba(0,0,0,0.15)";
+    ctx.shadowBlur    = 5;
+    ctx.shadowOffsetX = 2;
+    ctx.shadowOffsetY = 2;
+    ctx.fillStyle = "#ffffff";
+    roundRect(x, y, sz, sz, 5);
+    ctx.fill();
+    ctx.restore();
+    if (img) {
+      ctx.save();
+      roundRect(x + 1.5, y + 1.5, sz - 3, sz - 3, 4);
+      ctx.clip();
+      ctx.drawImage(img, x + 1.5, y + 1.5, sz - 3, sz - 3);
+      ctx.restore();
+    }
+    ctx.strokeStyle = "#dddddd";
+    ctx.lineWidth = 1.5;
+    roundRect(x, y, sz, sz, 5);
+    ctx.stroke();
+  }
+
+  drawBox(pad, imgY, imgSz, qrImg);
+  drawBox(W - pad - imgSz, imgY, imgSz, fotoImg);
+
+  // Nombre (con wrapping)
+  const infoX = pad + imgSz + 10;
+  const infoW = W - infoX - imgSz - pad - 10;
+  ctx.fillStyle = "#1a1814";
+  ctx.font      = "bold 11px Arial, sans-serif";
+  const words   = nombre.split(" ");
+  let line = "", lineY = bodyY + bodyH * 0.37;
+  for (const w of words) {
+    const test = line ? line + " " + w : w;
+    if (ctx.measureText(test).width > infoW && line) {
+      ctx.fillText(line, infoX, lineY);
+      line = w; lineY += 14;
+    } else { line = test; }
+  }
+  if (line) ctx.fillText(line, infoX, lineY);
+
+  ctx.font      = "9px Arial, sans-serif";
+  ctx.fillStyle = "#666666";
+  ctx.fillText(dniTxt, infoX, lineY + 16);
+
+  // Footer
+  const footerY = H - footerH;
+  ctx.fillStyle = colorSec;
+  ctx.fillRect(0, footerY, W, footerH);
+  roundRect(0, footerY, W, footerH, 10);
+  ctx.fill();
+  ctx.fillStyle = colorSec;
+  ctx.fillRect(0, footerY, W, footerH - 10);
+
+  // Badge curso
+  ctx.fillStyle = "rgba(255,255,255,0.25)";
+  roundRect(pad, footerY + 6, 72, 16, 8);
+  ctx.fill();
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 7px Arial, sans-serif";
+  ctx.fillText(cursoTxt, pad + 6, footerY + 17);
+
+  // Modalidad (derecha)
+  ctx.textAlign = "right";
+  ctx.font      = "bold 6.5px Arial, sans-serif";
+  ctx.fillStyle = "rgba(255,255,255,0.9)";
+  const mwords  = modalTxt.split(" ");
+  let ml = ""; const mlines = [];
+  for (const w of mwords) {
+    const t = ml ? ml + " " + w : w;
+    if (ctx.measureText(t).width > W * 0.42 && ml) { mlines.push(ml); ml = w; }
+    else ml = t;
+  }
+  if (ml) mlines.push(ml);
+  const mY0 = mlines.length > 1 ? footerY + 11 : footerY + 17;
+  mlines.forEach((l, i) => ctx.fillText(l, W - pad, mY0 + i * 9));
+  ctx.textAlign = "left";
+
+  return canvas;
 }
 
 
