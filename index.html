@@ -410,7 +410,7 @@ select:focus,input[type="date"]:focus{border-color:var(--accent)}
       </div>
       <div class="form-group">
         <label id="inf-valor-label">Mes</label>
-        <select id="inf-valor-periodo" onchange="validarFormInforme()">
+        <select id="inf-valor-periodo" onchange="validarBtnGrilla()">
           <option value="">— Seleccioná —</option>
         </select>
       </div>
@@ -895,9 +895,17 @@ function validarFormInforme() {
              document.getElementById("inf-materia").value;
   document.getElementById("btn-inf-meses").disabled = !ok;
   document.getElementById("btn-inf-trim").disabled  = !ok;
-  // Mostrar/ocultar card grilla y validar su botón
+  // Mostrar/ocultar card grilla y poblar opciones solo si cambia el curso/modal/materia
   document.getElementById("card-inf-grilla").style.display = ok ? "" : "none";
   if (ok) poblarOpcionesPeriodo();
+  validarBtnGrilla();
+}
+
+// Solo valida el botón generar sin repoblar el selector (evita loop)
+function validarBtnGrilla() {
+  const ok = document.getElementById("inf-curso").value &&
+             document.getElementById("inf-modalidad").value &&
+             document.getElementById("inf-materia").value;
   const okGrilla = ok && document.getElementById("inf-valor-periodo").value;
   document.getElementById("btn-inf-grilla").disabled = !okGrilla;
 }
@@ -905,7 +913,7 @@ function validarFormInforme() {
 // ── Rellena el selector de valor según tipo de período ──────
 function onInfTipoPeriodoChange() {
   poblarOpcionesPeriodo();
-  validarFormInforme();
+  validarBtnGrilla();
 }
 
 function poblarOpcionesPeriodo() {
@@ -1031,8 +1039,16 @@ async function mostrarInformeGrilla(data, curso, modalidad, materia, tipoPeriodo
 
   const thBg   = `background:${color};color:#fff;`;
   const thBase = `padding:3px 2px;text-align:center;font-size:${fs}px;border:1px solid #ccc;white-space:nowrap;`;
+  // Estilo base para celdas de datos — forzar color negro para que se lea en pantalla oscura
+  const tdBase = `padding:2px 2px;text-align:center;font-size:${fs}px;border:1px solid #eee;color:#111;`;
 
-  // ── Encabezado de grupos (meses) ────────────────────────
+  // ── Fila 1 de encabezado: Nro | Nombre | [grupo mes colspan] | Clases | Inas. ──
+  // BUG FIX: Los totales NO usan rowspan=2 porque necesitan sub-encabezados propios.
+  // Estructura correcta:
+  //   Fila 1: Nro(rowspan2) | Nombre(rowspan2) | MesA(colspanN) | MesB(colspanM) | Clases | Inas.
+  //   Fila 2:                                    fecha1..N        fecha1..M        (vacías ya cubiertas)
+  // Solución: Totales en fila 1 con rowspan=2, SIN sub-celdas en fila 2.
+
   let thGrupos = `<th style="${thBg}${thBase};width:${W_NRO}px" rowspan="2">Nro</th>`;
   thGrupos    += `<th style="${thBg}${thBase};width:${wNombre}px;text-align:left" rowspan="2">Apellido y Nombre</th>`;
 
@@ -1041,40 +1057,38 @@ async function mostrarInformeGrilla(data, curso, modalidad, materia, tipoPeriodo
     const nomMes = mesesNombres[parseInt(m)-1] + " " + y;
     thGrupos += `<th colspan="${g.cantidad}" style="${thBg}${thBase};border-bottom:2px solid rgba(255,255,255,0.4)">${nomMes}</th>`;
   });
-  thGrupos += `<th colspan="2" style="${thBg}${thBase}" rowspan="2">Totales</th>`;
+  // Totales: dos celdas separadas en fila 1 con rowspan=2 y encabezado propio
+  thGrupos += `<th style="${thBg}${thBase};width:36px" rowspan="2">Total<br>Clases</th>`;
+  thGrupos += `<th style="${thBg}${thBase};width:36px" rowspan="2">Total<br>Inas.</th>`;
 
-  // ── Sub-encabezado de fechas ─────────────────────────────
+  // ── Fila 2 de encabezado: solo las fechas (Nro, Nombre y Totales ya cubiertos por rowspan) ──
   let thFechas = "";
   fechas.forEach(f => {
-    // Mostrar solo DD/MM
     const partes = f.split("/");
     const label  = partes.length === 3 ? `${partes[0]}/${partes[1]}` : f;
     thFechas += `<th style="${thBg}${thBase};width:${wFecha}px">${label}</th>`;
   });
+  // NO agregar celdas de totales en fila 2 — ya cubiertas por rowspan=2
 
   // ── Filas de alumnos ─────────────────────────────────────
-  const tdBase = `padding:2px 2px;text-align:center;font-size:${fs}px;border:1px solid #eee;`;
   let filas = "";
   alumnos.forEach((a, i) => {
+    // BUG FIX: celda con fondo blanco, solo el texto P/A en color
     const celdas = a.celdas.map(v => {
-      const bg    = v === "P" ? "#dcfce7" : "#fee2e2";
-      const color2= v === "P" ? "#166534" : "#991b1b";
-      return `<td style="${tdBase}background:${bg};color:${color2};font-weight:700">${v}</td>`;
+      const txtColor = v === "P" ? "#166534" : "#cc0000";
+      const fw       = "font-weight:800";
+      return `<td style="${tdBase}${fw};color:${txtColor}">${v}</td>`;
     }).join("");
 
-    const bgRow = i % 2 === 0 ? "#fff" : "#f9fafb";
+    const bgRow = i % 2 === 0 ? "#fff" : "#f5f5f5";
     filas += `<tr style="background:${bgRow}">
-      <td style="${tdBase}font-size:${fs}px">${i+1}</td>
-      <td style="${tdBase}text-align:left;font-size:${Math.min(fs+1,9)}px;font-weight:500;white-space:nowrap;overflow:hidden;max-width:${wNombre}px">${a.nombre}</td>
+      <td style="${tdBase};background:${bgRow}">${i+1}</td>
+      <td style="${tdBase};background:${bgRow};text-align:left;font-size:${Math.min(fs+1,9)}px;font-weight:500">${a.nombre}</td>
       ${celdas}
-      <td style="${tdBase}font-weight:700">${a.totalClases}</td>
-      <td style="${tdBase}font-weight:700;color:${a.totalInas>0?"#991b1b":"#166534"}">${a.totalInas}</td>
+      <td style="${tdBase};background:${bgRow};font-weight:700">${a.totalClases}</td>
+      <td style="${tdBase};background:${bgRow};font-weight:700;color:${a.totalInas>0?"#cc0000":"#166534"}">${a.totalInas}</td>
     </tr>`;
   });
-
-  // Sub-encabezado de totales
-  const thTot1 = `<th style="${thBg}${thBase};font-size:${fs-1}px">Clases</th>`;
-  const thTot2 = `<th style="${thBg}${thBase};font-size:${fs-1}px">Inas.</th>`;
 
   const html = `
     <div style="width:100%;overflow-x:auto">
@@ -1082,13 +1096,13 @@ async function mostrarInformeGrilla(data, curso, modalidad, materia, tipoPeriodo
     <table style="width:100%;border-collapse:collapse;table-layout:fixed;font-family:Arial,sans-serif">
       <thead>
         <tr>${thGrupos}</tr>
-        <tr>${thFechas}${thTot1}${thTot2}</tr>
+        <tr>${thFechas}</tr>
       </thead>
       <tbody>${filas}</tbody>
     </table>
-    <div style="margin-top:8px;font-size:7px;color:#666;display:flex;gap:16px;align-items:center">
-      <span style="background:#dcfce7;color:#166534;padding:2px 6px;border-radius:3px;font-weight:700">P = Presente</span>
-      <span style="background:#fee2e2;color:#991b1b;padding:2px 6px;border-radius:3px;font-weight:700">A = Ausente</span>
+    <div style="margin-top:8px;font-size:7px;color:#555;display:flex;gap:16px;align-items:center">
+      <span style="color:#166534;font-weight:700;border:1px solid #166534;padding:1px 5px;border-radius:3px">P = Presente</span>
+      <span style="color:#cc0000;font-weight:700;border:1px solid #cc0000;padding:1px 5px;border-radius:3px">A = Ausente</span>
       <span style="margin-left:auto">Total alumnos: ${alumnos.length} &nbsp;|&nbsp; Generado: ${new Date().toLocaleDateString("es-AR")}</span>
     </div>
     </div>`;
