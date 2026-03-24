@@ -1472,14 +1472,15 @@ function imprimirInforme() {
       </div>
       <div class="pie-ks-der" id="pie-pag"></div>
     </div>
-    <script>
-      window.addEventListener("load",function(){setTimeout(function(){window.print();},600);});
-      var ps=document.createElement("style");
-      ps.textContent="@page{@bottom-right{content:'Pág. ' counter(page) ' / ' counter(pages);font-size:7px;color:#888;}}";
-      document.head.appendChild(ps);
-    </script>
     </body></html>`);
   win.document.close();
+  // Agregar estilo @page y disparar print desde JS del documento principal
+  try {
+    var ps = win.document.createElement("style");
+    ps.textContent = "@page{@bottom-right{content:'Pág. ' counter(page) ' / ' counter(pages);font-size:7px;color:#888;}}";
+    win.document.head.appendChild(ps);
+  } catch(e) {}
+  setTimeout(function(){ try { win.print(); } catch(e){} }, 700);
 }
 
 // ════════════════════════════════════════════════════════════
@@ -2668,14 +2669,14 @@ function imprimirInformeNotas() {
       </div>
       <div class="pie-ks-der" id="pie-pag-n"></div>
     </div>
-    <script>
-      window.addEventListener("load",function(){setTimeout(function(){window.print();},600);});
-      var ps=document.createElement("style");
-      ps.textContent="@page{@bottom-right{content:'Pág. ' counter(page) ' / ' counter(pages);font-size:6.5px;color:#888;}}";
-      document.head.appendChild(ps);
-    </script>
     </body></html>`);
   win.document.close();
+  try {
+    var psn = win.document.createElement("style");
+    psn.textContent = "@page{@bottom-right{content:'Pág. ' counter(page) ' / ' counter(pages);font-size:6.5px;color:#888;}}";
+    win.document.head.appendChild(psn);
+  } catch(e) {}
+  setTimeout(function(){ try { win.print(); } catch(e){} }, 700);
 }
 
 function fmtFecha(iso) {
