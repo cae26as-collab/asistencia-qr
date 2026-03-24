@@ -396,6 +396,29 @@ select:focus,input[type="date"]:focus{border-color:var(--accent)}
         📊 Informe por períodos
       </button>
     </div>
+
+    <!-- Informe grilla P/A -->
+    <div class="card" id="card-inf-grilla" style="display:none">
+      <div class="card-label">Informe de asistencia — grilla P/A</div>
+      <div class="form-group">
+        <label>Tipo de período</label>
+        <select id="inf-tipo-periodo" onchange="onInfTipoPeriodoChange()">
+          <option value="mes">Por mes</option>
+          <option value="trimestre">Por trimestre</option>
+          <option value="anual">Anual</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label id="inf-valor-label">Mes</label>
+        <select id="inf-valor-periodo" onchange="validarFormInforme()">
+          <option value="">— Seleccioná —</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" id="btn-inf-grilla" disabled onclick="generarInformeGrilla()">
+        📋 Generar grilla P/A
+      </button>
+    </div>
+
     <div id="inf-preview" style="display:none">
       <div class="card">
         <div class="card-label">Vista previa</div>
@@ -478,6 +501,7 @@ const app = {
   gafetes:      [],
   gafVisibles:  [],
   gafGrupos:    [],
+  imgCache:     {},
 };
 
 // ════════════════════════════════════════════════════════════
@@ -871,6 +895,209 @@ function validarFormInforme() {
              document.getElementById("inf-materia").value;
   document.getElementById("btn-inf-meses").disabled = !ok;
   document.getElementById("btn-inf-trim").disabled  = !ok;
+  // Mostrar/ocultar card grilla y validar su botón
+  document.getElementById("card-inf-grilla").style.display = ok ? "" : "none";
+  if (ok) poblarOpcionesPeriodo();
+  const okGrilla = ok && document.getElementById("inf-valor-periodo").value;
+  document.getElementById("btn-inf-grilla").disabled = !okGrilla;
+}
+
+// ── Rellena el selector de valor según tipo de período ──────
+function onInfTipoPeriodoChange() {
+  poblarOpcionesPeriodo();
+  validarFormInforme();
+}
+
+function poblarOpcionesPeriodo() {
+  const tipo = document.getElementById("inf-tipo-periodo").value;
+  const sel  = document.getElementById("inf-valor-periodo");
+  const lbl  = document.getElementById("inf-valor-label");
+  sel.innerHTML = '<option value="">— Seleccioná —</option>';
+
+  if (tipo === "mes") {
+    lbl.textContent = "Mes";
+    // Usar los meses conocidos del informe de meses — generamos desde la config
+    // Meses del año escolar arg: marzo a diciembre
+    const mesesNombres = ["Enero","Febrero","Marzo","Abril","Mayo","Junio",
+                          "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+    const anio = new Date().getFullYear();
+    // Ofrecer el año actual y el anterior
+    [anio, anio - 1].forEach(y => {
+      for (let m = 1; m <= 12; m++) {
+        const val = `${y}-${String(m).padStart(2,"0")}`;
+        const opt = document.createElement("option");
+        opt.value = val;
+        opt.textContent = `${mesesNombres[m-1]} ${y}`;
+        sel.appendChild(opt);
+      }
+    });
+    // Seleccionar el mes actual por defecto
+    const hoy = new Date();
+    sel.value = `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,"0")}`;
+
+  } else if (tipo === "trimestre") {
+    lbl.textContent = "Trimestre";
+    ["1° Trimestre","2° Trimestre","3° Trimestre"].forEach((t,i) => {
+      const opt = document.createElement("option");
+      opt.value = String(i+1); opt.textContent = t;
+      sel.appendChild(opt);
+    });
+
+  } else {
+    lbl.textContent = "Año";
+    const anio = new Date().getFullYear();
+    [anio, anio - 1].forEach(y => {
+      const opt = document.createElement("option");
+      opt.value = String(y); opt.textContent = String(y);
+      sel.appendChild(opt);
+    });
+    sel.value = String(anio);
+  }
+}
+
+// ── Genera el informe grilla P/A ─────────────────────────────
+async function generarInformeGrilla() {
+  const curso      = document.getElementById("inf-curso").value;
+  const modalidad  = document.getElementById("inf-modalidad").value;
+  const materia    = document.getElementById("inf-materia").value;
+  const tipoPeriodo= document.getElementById("inf-tipo-periodo").value;
+  const valorPeriodo=document.getElementById("inf-valor-periodo").value;
+  if (!valorPeriodo) return;
+
+  const btn = document.getElementById("btn-inf-grilla");
+  btn.textContent = "⏳ Generando..."; btn.disabled = true;
+  try {
+    const url = `${ENDPOINT_URL}?action=getInformeAsistencia`
+      + `&curso=${encodeURIComponent(curso)}`
+      + `&modalidad=${encodeURIComponent(modalidad)}`
+      + `&materia=${encodeURIComponent(materia)}`
+      + `&tipoPeriodo=${encodeURIComponent(tipoPeriodo)}`
+      + `&valorPeriodo=${encodeURIComponent(valorPeriodo)}`;
+    const res  = await fetch(url, { redirect: "follow" });
+    const data = await res.json();
+    if (data.status !== "ok") throw new Error(data.message);
+    await mostrarInformeGrilla(data, curso, modalidad, materia, tipoPeriodo, valorPeriodo);
+  } catch(e) { alert("Error: " + e.message); }
+  finally { btn.textContent = "📋 Generar grilla P/A"; btn.disabled = false; }
+}
+
+// ── Construye y muestra el informe grilla en el preview ──────
+async function mostrarInformeGrilla(data, curso, modalidad, materia, tipoPeriodo, valorPeriodo) {
+  const { alumnos, fechas, grupos, logoUrl, institucion, localidad, colorPpal, docente } = data;
+
+  if (!fechas || !fechas.length) {
+    alert("No hay clases registradas para el período seleccionado.");
+    return;
+  }
+
+  // Subtítulo dinámico
+  const mesesNombres = ["Enero","Febrero","Marzo","Abril","Mayo","Junio",
+                        "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+  let subtitulo = "Registro de asistencia";
+  if (tipoPeriodo === "mes") {
+    const [y, m] = valorPeriodo.split("-");
+    subtitulo += ` — ${mesesNombres[parseInt(m)-1]} ${y}`;
+  } else if (tipoPeriodo === "trimestre") {
+    subtitulo += ` — ${valorPeriodo}° Trimestre`;
+  } else {
+    subtitulo += ` — Año ${valorPeriodo}`;
+  }
+
+  const encabezado = await encabezadoInforme(
+    logoUrl, institucion, localidad, subtitulo,
+    curso, modalidad, materia, colorPpal, docente
+  );
+
+  const color = colorPpal || "#333333";
+
+  // ── Calcular anchos automáticos ──────────────────────────
+  // Columnas fijas: Nro(24px) + Nombre(variable) + Total Clases(36px) + Total Inas(36px)
+  // Columnas de fecha: reparten el resto
+  const totalCols   = fechas.length;
+  // En A4 horizontal el área útil es ~257mm ≈ 960px a 96dpi menos 40mm márgenes ≈ 810px
+  // Reservamos ~180px para Nro+Nombre, ~72px para los dos totales
+  const AREA_TOTAL  = 810; // px
+  const W_NRO       = 24;
+  const W_TOTALES   = 72; // 36 cada una
+  const W_NOMBRE_MIN= 120;
+  // Ancho disponible para fechas
+  const W_FECHAS_AVAIL = AREA_TOTAL - W_NRO - W_NOMBRE_MIN - W_TOTALES;
+  // Ancho ideal por celda de fecha (mín 18px, máx 40px)
+  const wFecha = Math.max(18, Math.min(40, Math.floor(W_FECHAS_AVAIL / totalCols)));
+  // Nombre ocupa lo que sobre
+  const wNombre = AREA_TOTAL - W_NRO - (wFecha * totalCols) - W_TOTALES;
+  // Font size adaptativo
+  const fs = wFecha <= 22 ? 6 : wFecha <= 30 ? 7 : 8;
+
+  const thBg   = `background:${color};color:#fff;`;
+  const thBase = `padding:3px 2px;text-align:center;font-size:${fs}px;border:1px solid #ccc;white-space:nowrap;`;
+
+  // ── Encabezado de grupos (meses) ────────────────────────
+  let thGrupos = `<th style="${thBg}${thBase};width:${W_NRO}px" rowspan="2">Nro</th>`;
+  thGrupos    += `<th style="${thBg}${thBase};width:${wNombre}px;text-align:left" rowspan="2">Apellido y Nombre</th>`;
+
+  grupos.forEach(g => {
+    const [y, m] = g.mes.split("-");
+    const nomMes = mesesNombres[parseInt(m)-1] + " " + y;
+    thGrupos += `<th colspan="${g.cantidad}" style="${thBg}${thBase};border-bottom:2px solid rgba(255,255,255,0.4)">${nomMes}</th>`;
+  });
+  thGrupos += `<th colspan="2" style="${thBg}${thBase}" rowspan="2">Totales</th>`;
+
+  // ── Sub-encabezado de fechas ─────────────────────────────
+  let thFechas = "";
+  fechas.forEach(f => {
+    // Mostrar solo DD/MM
+    const partes = f.split("/");
+    const label  = partes.length === 3 ? `${partes[0]}/${partes[1]}` : f;
+    thFechas += `<th style="${thBg}${thBase};width:${wFecha}px">${label}</th>`;
+  });
+
+  // ── Filas de alumnos ─────────────────────────────────────
+  const tdBase = `padding:2px 2px;text-align:center;font-size:${fs}px;border:1px solid #eee;`;
+  let filas = "";
+  alumnos.forEach((a, i) => {
+    const celdas = a.celdas.map(v => {
+      const bg    = v === "P" ? "#dcfce7" : "#fee2e2";
+      const color2= v === "P" ? "#166534" : "#991b1b";
+      return `<td style="${tdBase}background:${bg};color:${color2};font-weight:700">${v}</td>`;
+    }).join("");
+
+    const bgRow = i % 2 === 0 ? "#fff" : "#f9fafb";
+    filas += `<tr style="background:${bgRow}">
+      <td style="${tdBase}font-size:${fs}px">${i+1}</td>
+      <td style="${tdBase}text-align:left;font-size:${Math.min(fs+1,9)}px;font-weight:500;white-space:nowrap;overflow:hidden;max-width:${wNombre}px">${a.nombre}</td>
+      ${celdas}
+      <td style="${tdBase}font-weight:700">${a.totalClases}</td>
+      <td style="${tdBase}font-weight:700;color:${a.totalInas>0?"#991b1b":"#166534"}">${a.totalInas}</td>
+    </tr>`;
+  });
+
+  // Sub-encabezado de totales
+  const thTot1 = `<th style="${thBg}${thBase};font-size:${fs-1}px">Clases</th>`;
+  const thTot2 = `<th style="${thBg}${thBase};font-size:${fs-1}px">Inas.</th>`;
+
+  const html = `
+    <div style="width:100%;overflow-x:auto">
+    ${encabezado}
+    <table style="width:100%;border-collapse:collapse;table-layout:fixed;font-family:Arial,sans-serif">
+      <thead>
+        <tr>${thGrupos}</tr>
+        <tr>${thFechas}${thTot1}${thTot2}</tr>
+      </thead>
+      <tbody>${filas}</tbody>
+    </table>
+    <div style="margin-top:8px;font-size:7px;color:#666;display:flex;gap:16px;align-items:center">
+      <span style="background:#dcfce7;color:#166534;padding:2px 6px;border-radius:3px;font-weight:700">P = Presente</span>
+      <span style="background:#fee2e2;color:#991b1b;padding:2px 6px;border-radius:3px;font-weight:700">A = Ausente</span>
+      <span style="margin-left:auto">Total alumnos: ${alumnos.length} &nbsp;|&nbsp; Generado: ${new Date().toLocaleDateString("es-AR")}</span>
+    </div>
+    </div>`;
+
+  document.getElementById("inf-contenido").innerHTML = html;
+  document.getElementById("inf-preview").style.display = "block";
+
+  // Guardar flag para que imprimirInforme use landscape
+  document.getElementById("inf-preview").dataset.landscape = "1";
 }
 
 async function generarInformeMeses() {
@@ -969,6 +1196,7 @@ async function mostrarInformeMeses(data, curso, modalidad, materia) {
 
   document.getElementById("inf-contenido").innerHTML = html;
   document.getElementById("inf-preview").style.display = "block";
+  document.getElementById("inf-preview").dataset.landscape = "0";
 }
 
 async function mostrarInformePeriodos(data, curso, modalidad, materia) {
@@ -1025,45 +1253,41 @@ async function mostrarInformePeriodos(data, curso, modalidad, materia) {
 
   document.getElementById("inf-contenido").innerHTML = html;
   document.getElementById("inf-preview").style.display = "block";
+  document.getElementById("inf-preview").dataset.landscape = "0";
 }
 
 function imprimirInforme() {
-  const contenido = document.getElementById("inf-contenido").innerHTML;
-  const win = window.open("","_blank","width=900,height=700");
+  const contenido  = document.getElementById("inf-contenido").innerHTML;
+  const isLandscape = document.getElementById("inf-preview").dataset.landscape === "1";
+  const orientation = isLandscape ? "landscape" : "portrait";
+  const win = window.open("","_blank","width=1100,height=750");
   win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
     <style>
-      body{font-family:Arial,sans-serif;margin:0;padding:20mm;background:#fff;color:#000}
-      .informe-encabezado{display:flex;align-items:flex-start;gap:14px;border-bottom:2px solid #333;padding-bottom:12px;margin-bottom:16px}
-      .informe-logo{width:60px;height:60px;object-fit:contain}
-      .informe-inst-data h2{font-size:13px;font-weight:700;margin-bottom:2px}
-      .informe-inst-data p{font-size:10px;color:#333;line-height:1.5}
-      .informe-titulo{font-size:14px;font-weight:700;text-align:center;margin-bottom:14px;text-transform:uppercase;letter-spacing:.5px}
+      @page { size: A4 ${orientation}; margin: 12mm 14mm; }
+      body{font-family:Arial,sans-serif;margin:0;padding:0;background:#fff;color:#000}
+      .informe-encabezado{display:flex;align-items:flex-start;gap:14px;padding-bottom:8px;margin-bottom:0}
+      .informe-logo{width:56px;height:56px;object-fit:contain}
+      .informe-inst-data h2{font-size:12px;font-weight:700;margin-bottom:2px}
+      .informe-inst-data p{font-size:9px;color:#333;line-height:1.5;margin:0}
+      .informe-barra-color{height:3px;border-radius:2px;margin:6px 0 5px}
+      .informe-titulo{font-size:11px;font-weight:700;text-align:center;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px;padding-bottom:4px}
       .informe-tabla{width:100%;border-collapse:collapse;font-size:9px}
       .informe-tabla th{background:#333;color:#fff;padding:5px 6px;text-align:left;font-size:8px;text-transform:uppercase}
       .informe-tabla td{padding:4px 6px;border-bottom:1px solid #eee;vertical-align:middle}
       .informe-tabla tr:nth-child(even) td{background:#f8f8f8}
       .rojo td,.informe-tabla .rojo{background:#fee2e2!important;color:#991b1b;font-weight:700}
       .amarillo{background:#fef3c7!important;color:#92400e}
-      .informe-pie{margin-top:12px;font-size:8px;color:#666;text-align:right}
+      .informe-pie{margin-top:10px;font-size:7px;color:#666;text-align:right}
+      table{table-layout:fixed;width:100%}
+      td,th{overflow:hidden}
     </style></head><body>${contenido}</body></html>`);
   win.document.close();
-  setTimeout(() => { win.print(); win.close(); }, 500);
+  setTimeout(() => { win.print(); }, 600);
 }
 
 // ════════════════════════════════════════════════════════════
 //  GAFETES
 // ════════════════════════════════════════════════════════════
-
-// ── Normaliza URLs de Drive al formato directo de descarga ──
-function normalizarUrlDrive(url) {
-  if (!url) return "";
-  // Si ya es data: o quickchart, devolver tal cual
-  if (url.startsWith("data:") || url.includes("quickchart.io")) return url;
-  // Si es URL de Drive con export=view o export=download, dejamos como está
-  // El proxy se encarga de resolver CORS
-  return url.trim();
-}
-
 function poblarCursosGafetes() {
   const cursos = [...new Set(app.gafGrupos.map(g=>g.curso))].sort();
   const sel = document.getElementById("gaf-curso");
@@ -1083,57 +1307,19 @@ async function cargarGafetes() {
   const curso    = document.getElementById("gaf-curso").value;
   const modalidad= document.getElementById("gaf-modalidad").value;
   const grid     = document.getElementById("gafetes-grid");
-
   grid.innerHTML = `<div style="grid-column:1/-1;display:flex;flex-direction:column;align-items:center;gap:12px;padding:40px">
     <div class="spinner"></div><p style="color:var(--text2)">Cargando gafetes...</p></div>`;
-
   try {
     let url = `${ENDPOINT_URL}?action=getGafetes`;
     if (curso) url += `&curso=${encodeURIComponent(curso)}`;
     const res  = await fetch(url, {redirect:"follow"});
     const data = await res.json();
     if (data.status !== "ok") throw new Error(data.message);
-
-    app.gafetes    = data.gafetes;
+    app.gafetes = data.gafetes;
     app.gafVisibles = app.gafetes.filter(g => !modalidad || normalizar(g.modalidad)===normalizar(modalidad));
-
-    // ── Pre-cargar imágenes vía proxy antes de renderizar ──
-    // Así las imágenes están en base64 en el DOM y también
-    // disponibles para el canvas al exportar PNG/PDF/ZIP
-    grid.innerHTML = `<div style="grid-column:1/-1;display:flex;flex-direction:column;align-items:center;gap:12px;padding:40px">
-      <div class="spinner"></div>
-      <p style="color:var(--text2)" id="gaf-loading-msg">Cargando imágenes (0/${app.gafVisibles.length})...</p>
-    </div>`;
-
-    await precargarImagenesGafetes(app.gafVisibles);
     renderGafetes();
-
   } catch(e) {
     grid.innerHTML=`<div class="empty-state" style="grid-column:1/-1"><p style="color:var(--red)">Error: ${e.message}</p></div>`;
-  }
-}
-
-// ── Pre-carga todas las imágenes únicas vía proxy base64 ──
-async function precargarImagenesGafetes(lista) {
-  // Recolectar URLs únicas (logo, foto, qr)
-  const urlsUnicas = new Set();
-  lista.forEach(g => {
-    if (g.logoUrl) urlsUnicas.add(normalizarUrlDrive(g.logoUrl));
-    if (g.fotoUrl) urlsUnicas.add(normalizarUrlDrive(g.fotoUrl));
-    if (g.qrUrl)   urlsUnicas.add(g.qrUrl);
-  });
-
-  const urls   = [...urlsUnicas].filter(u => u && !u.startsWith("data:"));
-  const msgEl  = document.getElementById("gaf-loading-msg");
-  let cargadas = 0;
-
-  // Cargar de a 4 en paralelo para no saturar el proxy
-  const BATCH = 4;
-  for (let i = 0; i < urls.length; i += BATCH) {
-    const lote = urls.slice(i, i + BATCH);
-    await Promise.all(lote.map(u => cargarImgBase64(u)));
-    cargadas += lote.length;
-    if (msgEl) msgEl.textContent = `Cargando imágenes (${Math.min(cargadas, urls.length)}/${urls.length})...`;
   }
 }
 
@@ -1159,27 +1345,20 @@ function renderGafetes() {
     </div>`).join("");
 }
 
-// ── buildGafete usa el cache base64 para los <img> del DOM ──
 function buildGafete(g, idx) {
   const logoUrl = normalizarUrlDrive(g.logoUrl);
   const fotoUrl = normalizarUrlDrive(g.fotoUrl);
-  const qrUrl   = g.qrUrl || "";
 
-  // Usar base64 del cache si está disponible, sino la URL original
-  const logoSrc = (logoUrl && imgCache[logoUrl]) ? imgCache[logoUrl] : logoUrl;
-  const fotoSrc = (fotoUrl && imgCache[fotoUrl]) ? imgCache[fotoUrl] : fotoUrl;
-  const qrSrc   = (qrUrl   && imgCache[qrUrl])   ? imgCache[qrUrl]   : qrUrl;
-
-  const logo = logoSrc
-    ? `<img class="gafete-logo" src="${logoSrc}" onerror="this.style.display='none'" alt="logo">`
+  const logo = logoUrl
+    ? `<img class="gafete-logo" src="${logoUrl}" onerror="this.style.display='none'" alt="logo">`
     : `<div class="gafete-logo-placeholder"></div>`;
 
-  const foto = fotoSrc
-    ? `<img class="gafete-foto" src="${fotoSrc}" onerror="this.parentElement.innerHTML='<div class=gafete-foto-placeholder>👤</div>'" alt="foto">`
+  const foto = fotoUrl
+    ? `<img class="gafete-foto" src="${fotoUrl}" onerror="this.parentElement.innerHTML='<div class=gafete-foto-placeholder>👤</div>'" alt="foto">`
     : `<div class="gafete-foto-placeholder">👤</div>`;
 
-  const qr = qrSrc
-    ? `<img class="gafete-qr" src="${qrSrc}" alt="QR" onerror="this.style.opacity='0.3'">`
+  const qr = g.qrUrl
+    ? `<img class="gafete-qr" src="${g.qrUrl}" alt="QR" onerror="this.style.opacity='0.3'">`
     : `<div style="font-size:10px;color:#aaa;text-align:center">Sin QR</div>`;
 
   return `<div class="gafete" id="gafete-${idx}" data-idx="${idx}">
@@ -1251,16 +1430,16 @@ async function capturarGafete(el) {
   const cursoTxt  = el.querySelector(".gafete-curso-badge")?.textContent?.trim() || "";
   const modalTxt  = el.querySelector(".gafete-modal-text")?.textContent?.trim()  || "";
 
-  // URLs de imágenes — ya están en base64 en el DOM gracias a la pre-carga
+  // URLs de imágenes
   const logoSrc = el.querySelector(".gafete-logo")?.getAttribute("src") || "";
   const fotoSrc = el.querySelector(".gafete-foto")?.getAttribute("src") || "";
   const qrSrc   = el.querySelector(".gafete-qr")?.getAttribute("src")   || "";
 
-  // Si ya es data: se devuelve directo desde cache; sino pasa por proxy
+  // Descargar imágenes via proxy como base64
   const [logoB64, fotoB64, qrB64] = await Promise.all([
-    logoSrc.startsWith("data:") ? logoSrc : cargarImgBase64(logoSrc),
-    fotoSrc.startsWith("data:") ? fotoSrc : cargarImgBase64(fotoSrc),
-    qrSrc.startsWith("data:")   ? qrSrc   : cargarImgBase64(qrSrc),
+    cargarImgBase64(logoSrc),
+    cargarImgBase64(fotoSrc),
+    cargarImgBase64(qrSrc),
   ]);
 
   // Cargar como objetos Image
