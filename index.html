@@ -525,6 +525,14 @@ select:focus,input[type="date"]:focus{border-color:var(--accent)}
     </button>
   </div>
 
+      <button class="btn btn-secondary btn-sm" id="btn-prueba" onclick="generarDatosPrueba()"
+        style="background:#1a1d27;border:1px dashed #4e7cff;color:#4e7cff;font-size:12px;margin-top:4px">
+        🧪 Generar datos de prueba
+      </button>
+      <div id="prueba-log" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px;max-height:220px;overflow-y:auto;display:none;margin-top:4px;font-family:monospace"></div>
+    </div>
+  </div>
+
   <!-- ── Sub-tab: Cargar notas ────────────────────────────── -->
   <div class="sub-section" id="notas-cargar" style="padding:14px;gap:12px">
     <div class="card">
@@ -1541,6 +1549,13 @@ function renderGafetes() {
       </div>
       ${buildGafete(g,i)}
     </div>`).join("");
+}
+
+// ── Normaliza URLs de Drive al formato directo ───────────────
+function normalizarUrlDrive(url) {
+  if (!url) return "";
+  if (url.startsWith("data:") || url.includes("quickchart.io")) return url;
+  return url.trim();
 }
 
 function buildGafete(g, idx) {
@@ -2683,6 +2698,197 @@ function fmtFecha(iso) {
   if (!iso) return "";
   const [y,m,d] = iso.split("-");
   return `${d}/${m}/${y}`;
+}
+
+// ════════════════════════════════════════════════════════════
+//  MÓDULO DE DATOS DE PRUEBA
+//  Genera datos simulados para verificar cálculos y colores
+// ════════════════════════════════════════════════════════════
+async function generarDatosPrueba() {
+  const btn = document.getElementById("btn-prueba");
+  if (btn) { btn.textContent = "⏳ Generando..."; btn.disabled = true; }
+
+  const curso     = document.getElementById("not-curso").value;
+  const modalidad = document.getElementById("not-modalidad").value;
+  const materia   = document.getElementById("not-materia").value;
+
+  if (!curso || !modalidad || !materia) {
+    alert("Seleccioná Curso, Modalidad y Materia en la pestaña NOTAS primero.");
+    if (btn) { btn.textContent = "🧪 Generar datos de prueba"; btn.disabled = false; }
+    return;
+  }
+
+  const log = document.getElementById("prueba-log");
+  const addLog = (msg, color="#e8eaf2") => {
+    if (log) log.innerHTML += `<div style="color:${color};font-size:12px;margin:2px 0">${msg}</div>`;
+  };
+  if (log) { log.innerHTML = ""; log.style.display = "block"; }
+  addLog(`📋 Curso: ${curso}° | ${modalidad} | ${materia}`);
+
+  // ── Paso 1: Obtener alumnos reales del curso desde el backend ──
+  addLog("📡 Obteniendo alumnos reales del curso...");
+  let alumnosReales = [];
+  try {
+    const urlG = `${ENDPOINT_URL}?action=getGafetes&curso=${encodeURIComponent(curso)}&modalidad=${encodeURIComponent(modalidad)}`;
+    const resG = await fetch(urlG, { redirect:"follow" });
+    const dataG = await resG.json();
+    if (dataG.status === "ok" && dataG.gafetes?.length) {
+      // Filtrar por modalidad exacta
+      alumnosReales = dataG.gafetes
+        .filter(g => normalizar(g.modalidad) === normalizar(modalidad))
+        .map(g => ({ nombre: g.nombre, dni: g.dni }));
+      addLog(`  ✓ ${alumnosReales.length} alumnos encontrados`, "#22c55e");
+    } else {
+      addLog("  ✗ No se encontraron alumnos. Verificá que el curso esté cargado en DATOS_GAFETES.", "#ef4444");
+      if (btn) { btn.textContent = "🧪 Generar datos de prueba"; btn.disabled = false; }
+      return;
+    }
+  } catch(e) {
+    addLog("  ✗ Error al obtener alumnos: " + e.message, "#ef4444");
+    if (btn) { btn.textContent = "🧪 Generar datos de prueba"; btn.disabled = false; }
+    return;
+  }
+
+  // ── Paso 2: Asignar perfiles de nota a los alumnos reales ──
+  // Los 5 perfiles se repiten cíclicamente sobre todos los alumnos
+  // para garantizar que todos los escenarios aparezcan al menos una vez
+  const PERFILES = [
+    // Aprueba general (C≥5 y E≥6) + asist ≥65% → VERDE
+    { tps:[8,7,9],   evs:[7,8],   asistDias:[1,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,1,1] },
+    // Aprueba excepcional (C>8 y E>5) + asist 50-65% → AMARILLO
+    { tps:[9,10,9],  evs:[6,5.5], asistDias:[1,1,0,1,1,0,0,1,1,0,1,1,0,1,0,0,1,1,0,1] },
+    // No aprueba: C<5 aunque E≥6 → ROJO
+    { tps:[3,4,3.5], evs:[7,6],   asistDias:[1,1,1,0,1,1,1,0,1,1,1,0,1,1,1,0,1,1,0,1] },
+    // No aprueba: C≥5 pero E<6 → ROJO
+    { tps:[6,5,7],   evs:[4,5],   asistDias:[1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0] },
+    // Aprueba pero NF limitada por C+2 → VERDE
+    { tps:[5,6,5],   evs:[10,9],  asistDias:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1] },
+  ];
+
+  // Mostrar tabla de cálculos esperados
+  addLog("──────────────────────────────────────────");
+  addLog("📐 Cálculos esperados por alumno:");
+  alumnosReales.forEach((a, i) => {
+    const p = PERFILES[i % PERFILES.length];
+    const promTP = parseFloat((p.tps.reduce((s,x)=>s+x,0)/p.tps.length).toFixed(2));
+    const promEV = parseFloat((p.evs.reduce((s,x)=>s+x,0)/p.evs.length).toFixed(2));
+    const nfCalc = parseFloat(((promTP*0.6)+(promEV*0.4)).toFixed(2));
+    const limite = parseFloat((promTP+2).toFixed(2));
+    const nfReal = parseFloat(Math.min(nfCalc,limite).toFixed(2));
+    const apGen  = promTP>=5 && promEV>=6;
+    const apExc  = promTP>8  && promEV>5;
+    const aprueba= apGen||apExc;
+    const asistPct = Math.round((p.asistDias.filter(x=>x).length/p.asistDias.length)*100);
+    let nfMuestra;
+    if (aprueba) nfMuestra = nfReal>=6 ? nfReal.toFixed(2) : `6 (${nfReal.toFixed(2)})`;
+    else         nfMuestra = nfReal>=5 ? `5 (${nfReal.toFixed(2)})` : nfReal.toFixed(2);
+    const sem = !aprueba ? "🔴" : asistPct>=65 ? "🟢" : asistPct>=50 ? "🟡" : "🔴";
+    addLog(`${sem} <strong>${a.nombre}</strong> — promTP:${promTP} promEV:${promEV} NF:${nfMuestra} Asist:${asistPct}%`, "#e8eaf2");
+  });
+
+  // ── Paso 3: Crear trabajos en el backend ──────────────────
+  addLog("──────────────────────────────────────────");
+  addLog("📡 Creando trabajos en el backend...");
+  const periodo = "1";
+  const anioActual = new Date().getFullYear();
+
+  // Fechas de clases del 1er trimestre (aprox. marzo-mayo)
+  const fechasClases = [
+    `${anioActual}-03-05`, `${anioActual}-03-12`, `${anioActual}-03-19`, `${anioActual}-03-26`,
+    `${anioActual}-04-02`, `${anioActual}-04-09`, `${anioActual}-04-16`, `${anioActual}-04-23`,
+    `${anioActual}-04-30`, `${anioActual}-05-07`, `${anioActual}-05-14`, `${anioActual}-05-21`,
+    `${anioActual}-05-28`,
+  ];
+
+  const TRABAJOS_DEF = [
+    { tipo:"TP", nombre:"TP N°1 — Actividad introductoria", fecha:`${anioActual}-03-19` },
+    { tipo:"TP", nombre:"TP N°2 — Trabajo grupal",          fecha:`${anioActual}-04-09` },
+    { tipo:"TP", nombre:"TP N°3 — Análisis de caso",        fecha:`${anioActual}-04-30` },
+    { tipo:"EV", nombre:"EV N°1 — Evaluación parcial",      fecha:`${anioActual}-04-16` },
+    { tipo:"EV", nombre:"EV N°2 — Evaluación integradora",  fecha:`${anioActual}-05-21` },
+  ];
+
+  const idsCreados = [];
+  for (const t of TRABAJOS_DEF) {
+    try {
+      const res = await fetch(ENDPOINT_URL, {
+        method:"POST", redirect:"follow",
+        headers:{"Content-Type":"text/plain;charset=UTF-8"},
+        body: JSON.stringify({ action:"crearTrabajo", curso, modalidad, materia,
+          anio: anioActual, periodo, tipo:t.tipo, nombre:t.nombre, fecha:t.fecha })
+      });
+      const data = await res.json();
+      if (data.status==="ok") {
+        idsCreados.push({ id:data.id, tipo:t.tipo });
+        addLog(`  ✓ ${data.id} — ${t.nombre}`, "#22c55e");
+      } else { addLog(`  ✗ ${data.message}`, "#ef4444"); }
+    } catch(e) { addLog(`  ✗ Red: ${e.message}`, "#ef4444"); }
+  }
+
+  const idsTp = idsCreados.filter(x=>x.tipo==="TP").map(x=>x.id);
+  const idsEv = idsCreados.filter(x=>x.tipo==="EV").map(x=>x.id);
+  if (!idsTp.length || !idsEv.length) {
+    addLog("✗ No se crearon trabajos suficientes, abortando.", "#ef4444");
+    if (btn) { btn.textContent = "🧪 Generar datos de prueba"; btn.disabled = false; }
+    return;
+  }
+
+  // ── Paso 4: Registrar notas para cada alumno real ─────────
+  addLog("📝 Registrando notas...");
+  for (let i = 0; i < alumnosReales.length; i++) {
+    const a = alumnosReales[i];
+    const p = PERFILES[i % PERFILES.length];
+    const notasPorId = {};
+    idsTp.forEach((id, j) => { notasPorId[id] = p.tps[j] !== undefined ? p.tps[j] : p.tps[0]; });
+    idsEv.forEach((id, j) => { notasPorId[id] = p.evs[j] !== undefined ? p.evs[j] : p.evs[0]; });
+    for (const [idTrabajo, nota] of Object.entries(notasPorId)) {
+      try {
+        await fetch(ENDPOINT_URL, {
+          method:"POST", redirect:"follow",
+          headers:{"Content-Type":"text/plain;charset=UTF-8"},
+          body: JSON.stringify({ action:"registrarNota", curso, modalidad, materia,
+            dni: a.dni, idTrabajo, nota })
+        });
+      } catch(e) { /* continuar */ }
+    }
+    addLog(`  ✓ Notas: ${a.nombre}`, "#22c55e");
+  }
+
+  // ── Paso 5: Registrar asistencia ──────────────────────────
+  addLog("📅 Registrando asistencia (clases del 1er trimestre)...");
+  for (let i = 0; i < alumnosReales.length; i++) {
+    const a = alumnosReales[i];
+    const p = PERFILES[i % PERFILES.length];
+    let registradas = 0;
+    for (let f = 0; f < fechasClases.length; f++) {
+      const presente = p.asistDias[f % p.asistDias.length] === 1;
+      if (presente) {
+        try {
+          const res = await fetch(ENDPOINT_URL, {
+            method:"POST", redirect:"follow",
+            headers:{"Content-Type":"text/plain;charset=UTF-8"},
+            body: JSON.stringify({ dni: a.dni, fecha: fechasClases[f],
+              curso, modalidad, materia })
+          });
+          const data = await res.json();
+          if (data.status==="ok" || data.status==="repetido") registradas++;
+        } catch(e) { /* continuar */ }
+      }
+    }
+    const totalClases = fechasClases.length;
+    const pct = Math.round((registradas/totalClases)*100);
+    addLog(`  ✓ Asistencia: ${a.nombre} — ${registradas}/${totalClases} (${pct}%)`, "#22c55e");
+  }
+
+  addLog("──────────────────────────────────────────");
+  addLog("✅ Datos de prueba generados sobre alumnos REALES del curso.", "#22c55e");
+  addLog("📌 Próximos pasos:", "#4e7cff");
+  addLog("   1. Ir a NOTAS → seleccioná este curso/materia → Período 1", "#4e7cff");
+  addLog("   2. Sub-tab Rendimiento → verificá colores y NF calculada", "#4e7cff");
+  addLog("   3. Generá Informe por Período, General y Planilla", "#4e7cff");
+  addLog("   4. Para limpiar: eliminá las hojas TRABAJOS_, NOTAS_, ENTREGAS_ y ASIST_ de Google Sheets", "#f59e0b");
+
+  if (btn) { btn.textContent = "🧪 Generar datos de prueba"; btn.disabled = false; }
 }
 </script>
 </body>
