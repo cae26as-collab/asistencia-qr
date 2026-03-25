@@ -227,6 +227,9 @@ select:focus,input[type="date"]:focus{border-color:var(--accent)}
   <button class="nav-btn" data-sec="notas" onclick="switchSection('notas',this)">
     <span class="nav-icon">📝</span>NOTAS
   </button>
+  <button class="nav-btn" data-sec="notas" onclick="switchSection('notas',this)">
+    <span class="nav-icon">📝</span>NOTAS
+  </button>
   <button class="nav-btn" data-sec="gafetes" onclick="switchSection('gafetes',this)">
     <span class="nav-icon">🪪</span>GAFETES
   </button>
@@ -445,6 +448,147 @@ select:focus,input[type="date"]:focus{border-color:var(--accent)}
   </div>
 </section>
 
+
+<!-- ══════════════════════════════════════════════════════════
+     SECCIÓN: NOTAS / CALIFICACIONES
+══════════════════════════════════════════════════════════════ -->
+<section class="section" id="sec-notas">
+  <div class="sec-header">
+    <div class="sec-header-icon" style="background:#000984">📝</div>
+    <div>
+      <h2>Calificaciones</h2>
+      <span id="notas-sub">Seleccioná curso y materia</span>
+    </div>
+  </div>
+
+  <div class="sub-tabs" id="notas-subtabs">
+    <div class="sub-tab active" onclick="switchSubTabNotas('gestionar',this)">⚙ Gestionar</div>
+    <div class="sub-tab" onclick="switchSubTabNotas('cargar',this)">✏ Cargar</div>
+    <div class="sub-tab" onclick="switchSubTabNotas('escanear',this)">📷 Escanear</div>
+    <div class="sub-tab" onclick="switchSubTabNotas('rendimiento',this)">📊 Rendimiento</div>
+  </div>
+
+  <!-- ── Selector global de clase ─────────────────────────── -->
+  <div style="background:var(--surface);border-bottom:1px solid var(--border);padding:10px 16px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+      <div class="ctrl-group">
+        <span class="ctrl-label">Curso</span>
+        <select id="not-curso" onchange="onNotCursoChange()"><option value="">— Curso —</option></select>
+      </div>
+      <div class="ctrl-group">
+        <span class="ctrl-label">Modalidad</span>
+        <select id="not-modalidad" disabled onchange="onNotModalidadChange()"><option value="">— Modalidad —</option></select>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="ctrl-group">
+        <span class="ctrl-label">Materia</span>
+        <select id="not-materia" disabled onchange="onNotMateriaChange()"><option value="">— Materia —</option></select>
+      </div>
+      <div class="ctrl-group">
+        <span class="ctrl-label">Período</span>
+        <select id="not-periodo" disabled onchange="onNotPeriodoChange()"><option value="">— Período —</option></select>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Sub-tab: Gestionar ───────────────────────────────── -->
+  <div class="sub-section active" id="notas-gestionar" style="padding:14px;gap:12px">
+    <div class="card">
+      <div class="card-label">Nuevo trabajo / evaluación</div>
+      <div class="form-group">
+        <label>Tipo</label>
+        <select id="not-nuevo-tipo">
+          <option value="TP">TP — Trabajo Práctico</option>
+          <option value="EV">EV — Evaluación</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Nombre</label>
+        <input type="text" id="not-nuevo-nombre" placeholder="Ej: TP N°1 — Revolución Industrial" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;padding:10px 12px;width:100%;outline:none">
+      </div>
+      <div class="form-group">
+        <label>Fecha</label>
+        <input type="date" id="not-nuevo-fecha">
+      </div>
+      <button class="btn btn-primary" id="btn-not-crear" disabled onclick="crearTrabajo()">
+        ➕ Crear trabajo
+      </button>
+    </div>
+
+    <div class="card" id="card-trabajos-lista">
+      <div class="card-label">Trabajos del período</div>
+      <div id="not-trabajos-lista"><div class="empty-state">Seleccioná curso, materia y período</div></div>
+    </div>
+
+    <button class="btn" id="btn-cerrar-periodo" disabled
+      style="background:#7c3aed;color:#fff"
+      onclick="confirmarCerrarPeriodo()">
+      🔒 Cerrar período y guardar promedios
+    </button>
+  </div>
+
+      <button class="btn btn-secondary btn-sm" id="btn-prueba" onclick="generarDatosPrueba()"
+        style="background:#1a1d27;border:1px dashed #4e7cff;color:#4e7cff;font-size:12px;margin-top:4px">
+        🧪 Generar datos de prueba
+      </button>
+      <div id="prueba-log" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px;max-height:220px;overflow-y:auto;display:none;margin-top:4px;font-family:monospace"></div>
+    </div>
+  </div>
+
+  <!-- ── Sub-tab: Cargar notas ────────────────────────────── -->
+  <div class="sub-section" id="notas-cargar" style="padding:14px;gap:12px">
+    <div class="card">
+      <div class="card-label">Trabajo a calificar</div>
+      <select id="not-sel-trabajo" onchange="cargarListaNotas()">
+        <option value="">— Seleccioná un trabajo —</option>
+      </select>
+    </div>
+    <div id="not-lista-notas">
+      <div class="empty-state">Seleccioná un trabajo para ver el listado</div>
+    </div>
+  </div>
+
+  <!-- ── Sub-tab: Escanear entrega ────────────────────────── -->
+  <div class="sub-section" id="notas-escanear" style="padding:14px;gap:12px">
+    <div class="card">
+      <div class="card-label">Trabajo a registrar entrega</div>
+      <select id="not-sel-escaneo" onchange="validarEscaneoEntrega()">
+        <option value="">— Seleccioná un trabajo —</option>
+      </select>
+    </div>
+    <div class="semaforo idle" id="not-semaforo">
+      <div class="sem-dot" id="not-sem-dot">🎯</div>
+      <div class="sem-info">
+        <div class="sem-nombre" id="not-sem-nombre">Esperando escaneo...</div>
+        <div class="sem-sub" id="not-sem-sub">Apuntá la cámara al código QR del alumno</div>
+      </div>
+    </div>
+    <div class="cooldown-bar"><div class="cooldown-fill" id="not-cooldown-fill"></div></div>
+    <div id="not-qr-reader" style="border-radius:var(--radius);overflow:hidden;background:#000;width:100%;aspect-ratio:1;max-width:360px;margin:0 auto"></div>
+    <button class="btn btn-danger" id="not-btn-detener" onclick="detenerEscaneoEntrega()" style="display:none">⏹ Detener scanner</button>
+    <button class="btn btn-primary" id="not-btn-iniciar-scan" disabled onclick="iniciarEscaneoEntrega()">📷 Iniciar scanner de entregas</button>
+  </div>
+
+  <!-- ── Sub-tab: Rendimiento ─────────────────────────────── -->
+  <div class="sub-section" id="notas-rendimiento" style="padding:14px;gap:12px">
+    <div class="btn-row" style="flex-wrap:wrap;gap:8px">
+      <button class="btn btn-primary btn-sm" id="btn-inf-periodo" disabled onclick="generarInformePeriodo()">📄 Informe período</button>
+      <button class="btn btn-green btn-sm" id="btn-inf-general" disabled onclick="generarInformeGeneral()">📋 Informe general</button>
+      <button class="btn btn-sm" style="background:#7c3aed;color:#fff" id="btn-inf-planilla" disabled onclick="generarPlanillaCalif()">📑 Planilla calificaciones</button>
+    </div>
+    <div id="not-rendimiento-tabla">
+      <div class="empty-state">Seleccioná curso, materia y período para ver el rendimiento</div>
+    </div>
+    <div id="not-inf-preview" style="display:none">
+      <div class="card">
+        <div class="card-label">Vista previa</div>
+        <div id="not-inf-contenido"></div>
+        <button class="btn btn-primary" style="margin-top:12px" onclick="imprimirInformeNotas()">🖨 Exportar PDF</button>
+      </div>
+    </div>
+  </div>
+</section>
 
 <!-- ══════════════════════════════════════════════════════════
      SECCIÓN: NOTAS / CALIFICACIONES
@@ -1523,12 +1667,10 @@ async function cargarGafetes() {
     const res  = await fetch(url, {redirect:"follow"});
     const data = await res.json();
     if (data.status !== "ok") throw new Error(data.message);
-
-    app.gafetes     = data.gafetes;
+    app.gafetes = data.gafetes;
     app.gafVisibles = app.gafetes.filter(g => !modalidad || normalizar(g.modalidad)===normalizar(modalidad));
 
     // Pre-cargar imágenes vía proxy antes de renderizar
-    // Así los <img> del DOM usan base64 y el canvas al exportar las encuentra en cache
     grid.innerHTML = `<div style="grid-column:1/-1;display:flex;flex-direction:column;align-items:center;gap:12px;padding:40px">
       <div class="spinner"></div>
       <p style="color:var(--text2)" id="gaf-loading-msg">Cargando imágenes (0/${app.gafVisibles.length})...</p>
@@ -1550,12 +1692,9 @@ async function precargarImagenesGafetes(lista) {
     if (g.fotoUrl) urlsUnicas.add(normalizarUrlDrive(g.fotoUrl));
     if (g.qrUrl)   urlsUnicas.add(g.qrUrl);
   });
-
   const urls   = [...urlsUnicas].filter(u => u && !u.startsWith("data:"));
   const msgEl  = document.getElementById("gaf-loading-msg");
   let cargadas = 0;
-
-  // Cargar de a 4 en paralelo para no saturar el proxy
   const BATCH = 4;
   for (let i = 0; i < urls.length; i += BATCH) {
     const lote = urls.slice(i, i + BATCH);
