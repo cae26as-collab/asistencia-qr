@@ -1513,19 +1513,55 @@ async function cargarGafetes() {
   const curso    = document.getElementById("gaf-curso").value;
   const modalidad= document.getElementById("gaf-modalidad").value;
   const grid     = document.getElementById("gafetes-grid");
+
   grid.innerHTML = `<div style="grid-column:1/-1;display:flex;flex-direction:column;align-items:center;gap:12px;padding:40px">
     <div class="spinner"></div><p style="color:var(--text2)">Cargando gafetes...</p></div>`;
+
   try {
     let url = `${ENDPOINT_URL}?action=getGafetes`;
     if (curso) url += `&curso=${encodeURIComponent(curso)}`;
     const res  = await fetch(url, {redirect:"follow"});
     const data = await res.json();
     if (data.status !== "ok") throw new Error(data.message);
-    app.gafetes = data.gafetes;
+
+    app.gafetes     = data.gafetes;
     app.gafVisibles = app.gafetes.filter(g => !modalidad || normalizar(g.modalidad)===normalizar(modalidad));
+
+    // Pre-cargar imágenes vía proxy antes de renderizar
+    // Así los <img> del DOM usan base64 y el canvas al exportar las encuentra en cache
+    grid.innerHTML = `<div style="grid-column:1/-1;display:flex;flex-direction:column;align-items:center;gap:12px;padding:40px">
+      <div class="spinner"></div>
+      <p style="color:var(--text2)" id="gaf-loading-msg">Cargando imágenes (0/${app.gafVisibles.length})...</p>
+    </div>`;
+
+    await precargarImagenesGafetes(app.gafVisibles);
     renderGafetes();
+
   } catch(e) {
     grid.innerHTML=`<div class="empty-state" style="grid-column:1/-1"><p style="color:var(--red)">Error: ${e.message}</p></div>`;
+  }
+}
+
+// Pre-carga todas las imágenes únicas vía proxy base64
+async function precargarImagenesGafetes(lista) {
+  const urlsUnicas = new Set();
+  lista.forEach(g => {
+    if (g.logoUrl) urlsUnicas.add(normalizarUrlDrive(g.logoUrl));
+    if (g.fotoUrl) urlsUnicas.add(normalizarUrlDrive(g.fotoUrl));
+    if (g.qrUrl)   urlsUnicas.add(g.qrUrl);
+  });
+
+  const urls   = [...urlsUnicas].filter(u => u && !u.startsWith("data:"));
+  const msgEl  = document.getElementById("gaf-loading-msg");
+  let cargadas = 0;
+
+  // Cargar de a 4 en paralelo para no saturar el proxy
+  const BATCH = 4;
+  for (let i = 0; i < urls.length; i += BATCH) {
+    const lote = urls.slice(i, i + BATCH);
+    await Promise.all(lote.map(u => cargarImgBase64(u)));
+    cargadas += lote.length;
+    if (msgEl) msgEl.textContent = `Cargando imágenes (${Math.min(cargadas, urls.length)}/${urls.length})...`;
   }
 }
 
@@ -1561,17 +1597,23 @@ function normalizarUrlDrive(url) {
 function buildGafete(g, idx) {
   const logoUrl = normalizarUrlDrive(g.logoUrl);
   const fotoUrl = normalizarUrlDrive(g.fotoUrl);
+  const qrUrl   = g.qrUrl || "";
 
-  const logo = logoUrl
-    ? `<img class="gafete-logo" src="${logoUrl}" onerror="this.style.display='none'" alt="logo">`
+  // Usar base64 del cache si está disponible, sino la URL original
+  const logoSrc = (logoUrl && imgCache[logoUrl]) ? imgCache[logoUrl] : logoUrl;
+  const fotoSrc = (fotoUrl && imgCache[fotoUrl]) ? imgCache[fotoUrl] : fotoUrl;
+  const qrSrc   = (qrUrl   && imgCache[qrUrl])   ? imgCache[qrUrl]   : qrUrl;
+
+  const logo = logoSrc
+    ? `<img class="gafete-logo" src="${logoSrc}" onerror="this.style.display='none'" alt="logo">`
     : `<div class="gafete-logo-placeholder"></div>`;
 
-  const foto = fotoUrl
-    ? `<img class="gafete-foto" src="${fotoUrl}" onerror="this.parentElement.innerHTML='<div class=gafete-foto-placeholder>👤</div>'" alt="foto">`
+  const foto = fotoSrc
+    ? `<img class="gafete-foto" src="${fotoSrc}" onerror="this.parentElement.innerHTML='<div class=gafete-foto-placeholder>👤</div>'" alt="foto">`
     : `<div class="gafete-foto-placeholder">👤</div>`;
 
-  const qr = g.qrUrl
-    ? `<img class="gafete-qr" src="${g.qrUrl}" alt="QR" onerror="this.style.opacity='0.3'">`
+  const qr = qrSrc
+    ? `<img class="gafete-qr" src="${qrSrc}" alt="QR" onerror="this.style.opacity='0.3'">`
     : `<div style="font-size:10px;color:#aaa;text-align:center">Sin QR</div>`;
 
   return `<div class="gafete" id="gafete-${idx}" data-idx="${idx}">
