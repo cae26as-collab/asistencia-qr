@@ -181,10 +181,12 @@ select:focus,input[type="date"]:focus{border-color:var(--accent)}
 
 /* ── PRINT ── */
 @media print{
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  html, body { background: #ffffff !important; color: #000 !important; }
   body *{visibility:hidden}
   #print-area,#print-area *{visibility:visible}
-  #print-area{position:fixed;inset:0;display:block!important}
-  .print-page{width:210mm;page-break-after:always;display:grid;grid-template-columns:repeat(2,90mm);grid-template-rows:repeat(4,60mm);gap:5mm;padding:10mm}
+  #print-area{position:fixed;inset:0;display:block!important;background:#fff!important}
+  .print-page{width:210mm;page-break-after:always;display:grid;grid-template-columns:repeat(2,90mm);grid-template-rows:repeat(4,60mm);gap:5mm;padding:10mm;background:#fff!important}
   .print-page .gafete{width:90mm!important;height:60mm!important;box-shadow:none!important;break-inside:avoid}
   .main-nav,.sec-header,.ctrl-bar,.stats-bar,.gafete-actions,.section:not(#print-area){display:none!important}
 }
@@ -761,6 +763,7 @@ select:focus,input[type="date"]:focus{border-color:var(--accent)}
       <button class="btn btn-secondary btn-sm" id="gaf-btn-print" disabled onclick="imprimirGafetes()">🖨</button>
       <button class="btn btn-green btn-sm" id="gaf-btn-pdf" disabled onclick="exportarPDF()">⬇ PDF</button>
       <button class="btn btn-sm" style="background:#7c3aed;color:#fff" id="gaf-btn-zip" disabled onclick="exportarZIP()">🗜 ZIP</button>
+      <button class="btn btn-sm" style="background:#0891b2;color:#fff" id="gaf-btn-stickers" disabled onclick="generarStickersQR()">🏷 Stickers QR</button>
     </div>
   </div>
 
@@ -1673,7 +1676,7 @@ async function cargarGafetes() {
     // Pre-cargar imágenes vía proxy antes de renderizar
     grid.innerHTML = `<div style="grid-column:1/-1;display:flex;flex-direction:column;align-items:center;gap:12px;padding:40px">
       <div class="spinner"></div>
-      <p style="color:var(--text2)" id="gaf-loading-msg">Cargando imágenes (0/${app.gafVisibles.length})...</p>
+      <p style="color:var(--text2)" id="gaf-loading-msg">Preparando ${app.gafVisibles.length} gafetes...</p>
     </div>`;
 
     await precargarImagenesGafetes(app.gafVisibles);
@@ -1700,7 +1703,7 @@ async function precargarImagenesGafetes(lista) {
     const lote = urls.slice(i, i + BATCH);
     await Promise.all(lote.map(u => cargarImgBase64(u)));
     cargadas += lote.length;
-    if (msgEl) msgEl.textContent = `Cargando imágenes (${Math.min(cargadas, urls.length)}/${urls.length})...`;
+    if (msgEl) msgEl.textContent = `Cargando imágenes... (${Math.round(cargadas/urls.length*100)}%)`;
   }
 }
 
@@ -1710,9 +1713,10 @@ function renderGafetes() {
   document.getElementById("gaf-count").textContent  = total;
   document.getElementById("gaf-count").style.display= total?"":"none";
   document.getElementById("gaf-stats").textContent  = total?`Mostrando ${total} gafete${total!==1?"s":""}`: "Sin resultados";
-  document.getElementById("gaf-btn-print").disabled = total===0;
-  document.getElementById("gaf-btn-pdf").disabled   = total===0;
-  document.getElementById("gaf-btn-zip").disabled   = total===0;
+  document.getElementById("gaf-btn-print").disabled    = total===0;
+  document.getElementById("gaf-btn-pdf").disabled      = total===0;
+  document.getElementById("gaf-btn-zip").disabled      = total===0;
+  document.getElementById("gaf-btn-stickers").disabled = total===0;
   if (!total) { grid.innerHTML='<div class="empty-state" style="grid-column:1/-1"><p>Sin gafetes para este filtro</p></div>'; return; }
   grid.innerHTML = app.gafVisibles.map((g,i) => `
     <div class="gafete-wrap">
@@ -2057,6 +2061,115 @@ async function exportarZIP() {
     URL.revokeObjectURL(link.href);
   } catch(e) { alert("Error ZIP: "+e.message); }
   finally { btn.textContent="🗜 ZIP"; btn.disabled=false; }
+}
+
+// ── Stickers QR ─────────────────────────────────────────────
+// A4 horizontal: 297 × 210 mm
+// Márgenes: 10mm cada lado → área útil: 277mm
+// QR: 25×25mm | separación: 5mm | 9 por fila → 9×25 + 8×5 = 265mm ✓
+// Nombre encima de los QR, bloque completo no se separa entre páginas
+async function generarStickersQR() {
+  const btn = document.getElementById("gaf-btn-stickers");
+  btn.textContent = "⏳ Generando..."; btn.disabled = true;
+
+  const lista = app.gafVisibles;
+  if (!lista || !lista.length) {
+    btn.textContent = "🏷 Stickers QR"; btn.disabled = false;
+    return;
+  }
+
+  // Construir el HTML de la ventana de impresión
+  const QR_MM   = 25;    // tamaño del QR en mm
+  const GAP_MM  = 5;     // separación entre QRs
+  const QR_POR_FILA = 9;
+  const MARGIN_MM = 10;
+
+  // Pre-cargar QRs en base64 (ya deberían estar en cache)
+  const qrCacheMap = {};
+  for (const g of lista) {
+    if (g.qrUrl) {
+      const b64 = imgCache[g.qrUrl] || await cargarImgBase64(g.qrUrl);
+      qrCacheMap[g.qrUrl] = b64 || g.qrUrl;
+    }
+  }
+
+  // Generar un bloque por alumno (nombre + 9 QRs)
+  const bloques = lista.map(g => {
+    const nombre = g.nombre || "";
+    const qrSrc  = qrCacheMap[g.qrUrl] || g.qrUrl || "";
+    const qrs    = Array(QR_POR_FILA).fill(0).map(() =>
+      qrSrc
+        ? `<img src="${qrSrc}" style="width:${QR_MM}mm;height:${QR_MM}mm;display:block;object-fit:contain">`
+        : `<div style="width:${QR_MM}mm;height:${QR_MM}mm;background:#eee;display:flex;align-items:center;justify-content:center;font-size:7px;color:#999">Sin QR</div>`
+    ).join("");
+
+    return `
+      <div class="sticker-bloque">
+        <div class="sticker-nombre">${nombre}</div>
+        <div class="sticker-fila">${qrs}</div>
+      </div>`;
+  }).join("");
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <style>
+    @page { size: A4 landscape; margin: ${MARGIN_MM}mm; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Arial, sans-serif;
+      background: #fff;
+      color: #000;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .sticker-bloque {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      break-inside: avoid;
+      page-break-inside: avoid;
+      margin-bottom: 4mm;
+      padding: 2mm 0 2mm 0;
+      border-bottom: 0.3mm dashed #ccc;
+    }
+    .sticker-bloque:last-child { border-bottom: none; }
+    .sticker-nombre {
+      font-size: 9pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      margin-bottom: 2mm;
+      padding-left: 1mm;
+    }
+    .sticker-fila {
+      display: flex;
+      flex-direction: row;
+      gap: ${GAP_MM}mm;
+      align-items: center;
+    }
+    .sticker-fila img {
+      flex-shrink: 0;
+      border: 0.2mm solid #ddd;
+      border-radius: 1mm;
+    }
+  </style>
+  </head><body>${bloques}
+  <script>
+    window.addEventListener("load", function() {
+      setTimeout(function() { window.print(); }, 500);
+    });
+  <\/script>
+  </body></html>`;
+
+  const win = window.open("", "_blank", "width=1100,height=750");
+  if (!win) {
+    alert("El navegador bloqueó la ventana emergente. Permitila para este sitio.");
+    btn.textContent = "🏷 Stickers QR"; btn.disabled = false;
+    return;
+  }
+  win.document.write(html);
+  win.document.close();
+
+  btn.textContent = "🏷 Stickers QR"; btn.disabled = false;
 }
 
 function imprimirGafetes() {
