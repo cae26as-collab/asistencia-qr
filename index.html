@@ -16,6 +16,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -230,6 +231,9 @@ select:focus,input[type="date"]:focus{border-color:var(--accent)}
   </button>
   <button class="nav-btn" data-sec="notas" onclick="switchSection('notas',this)">
     <span class="nav-icon">📝</span>NOTAS
+  </button>
+  <button class="nav-btn" data-sec="cursos" onclick="switchSection('cursos',this)">
+    <span class="nav-icon">🎓</span>CURSOS
   </button>
   <button class="nav-btn" data-sec="gafetes" onclick="switchSection('gafetes',this)">
     <span class="nav-icon">🪪</span>GAFETES
@@ -595,6 +599,180 @@ select:focus,input[type="date"]:focus{border-color:var(--accent)}
   </div>
 </section>
 
+
+<!-- ══════════════════════════════════════════════════════════
+     SECCIÓN: CURSOS Y ESTUDIANTES
+══════════════════════════════════════════════════════════════ -->
+<section class="section" id="sec-cursos">
+  <div class="sec-header">
+    <div class="sec-header-icon" style="background:#000984">🎓</div>
+    <div>
+      <h2>Cursos y Estudiantes</h2>
+      <span id="cursos-sub">Administración de cursos y alumnos</span>
+    </div>
+  </div>
+
+  <div class="sub-tabs" id="cursos-subtabs">
+    <div class="sub-tab active" onclick="switchSubTabCursos('cursos',this)">📋 Cursos</div>
+    <div class="sub-tab" onclick="switchSubTabCursos('estudiantes',this)">👥 Estudiantes</div>
+  </div>
+
+  <!-- ── Sub-tab: Cursos (ABM) ──────────────────────────────── -->
+  <div class="sub-section active" id="cursos-cursos" style="padding:14px;gap:12px">
+
+    <!-- Crear nuevo curso -->
+    <div class="card">
+      <div class="card-label">Nuevo curso / espacio curricular</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <div class="form-group">
+          <label>Año</label>
+          <select id="cur-nuevo-anio">
+            <option value="1">1°</option><option value="2">2°</option>
+            <option value="3">3°</option><option value="4">4°</option>
+            <option value="5">5°</option><option value="6">6°</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Tipo período</label>
+          <select id="cur-nuevo-tipo">
+            <option value="trimestral">Trimestral</option>
+            <option value="cuatrimestral">Cuatrimestral</option>
+            <option value="anual">Anual</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Modalidad</label>
+        <input type="text" id="cur-nuevo-modal" placeholder="Ej: BACHILLER EN CIENCIAS SOCIALES"
+          style="background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;padding:10px 12px;width:100%;outline:none;text-transform:uppercase">
+      </div>
+      <div class="form-group">
+        <label>Espacio curricular / Materia</label>
+        <input type="text" id="cur-nuevo-materia" placeholder="Ej: Matemática"
+          style="background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;padding:10px 12px;width:100%;outline:none">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <div class="form-group">
+          <label>Color principal</label>
+          <input type="color" id="cur-nuevo-color1" value="#000984" style="width:100%;height:42px;border-radius:8px;border:1px solid var(--border);background:var(--bg);cursor:pointer">
+        </div>
+        <div class="form-group">
+          <label>Color secundario</label>
+          <input type="color" id="cur-nuevo-color2" value="#1a29ff" style="width:100%;height:42px;border-radius:8px;border:1px solid var(--border);background:var(--bg);cursor:pointer">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Docente</label>
+        <input type="text" id="cur-nuevo-docente" placeholder="Apellido y Nombre del docente"
+          style="background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;padding:10px 12px;width:100%;outline:none">
+      </div>
+      <button class="btn btn-primary" onclick="crearCurso()">➕ Crear curso</button>
+    </div>
+
+    <!-- Lista de cursos -->
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div class="card-label" style="margin:0">Cursos activos</div>
+        <button class="btn btn-sm btn-secondary" onclick="cargarCursos()">🔄 Actualizar</button>
+      </div>
+      <div id="cursos-lista"><div class="empty-state">Cargando...</div></div>
+    </div>
+  </div>
+
+  <!-- ── Sub-tab: Estudiantes ──────────────────────────────── -->
+  <div class="sub-section" id="cursos-estudiantes" style="padding:14px;gap:12px">
+
+    <!-- Filtro de contexto -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:4px">
+      <div class="card-label" style="margin-bottom:8px">Seleccioná el curso</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div class="ctrl-group">
+          <span class="ctrl-label">Institución</span>
+          <select id="est-inst" onchange="onEstInstChange()"><option value="">— Institución —</option></select>
+        </div>
+        <div class="ctrl-group">
+          <span class="ctrl-label">Localidad</span>
+          <select id="est-loc" disabled onchange="onEstLocChange()"><option value="">— Localidad —</option></select>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+        <div class="ctrl-group">
+          <span class="ctrl-label">Curso</span>
+          <select id="est-curso" disabled onchange="onEstCursoChange()"><option value="">— Curso —</option></select>
+        </div>
+        <div class="ctrl-group">
+          <span class="ctrl-label">Modalidad</span>
+          <select id="est-modal" disabled onchange="onEstModalChange()"><option value="">— Modalidad —</option></select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabs: individual / masivo / lista -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-primary btn-sm" id="btn-est-agregar" disabled onclick="abrirFormEstudiante()">➕ Agregar alumno</button>
+      <button class="btn btn-sm" style="background:#0891b2;color:#fff" id="btn-est-importar" disabled onclick="abrirImportEstudiantes()">📥 Importar CSV</button>
+    </div>
+
+    <!-- Formulario: agregar individual -->
+    <div id="form-est-individual" style="display:none">
+      <div class="card">
+        <div class="card-label">Nuevo estudiante</div>
+        <div class="form-group">
+          <label>Apellido y Nombre</label>
+          <input type="text" id="est-nombre" placeholder="APELLIDO NOMBRE"
+            style="background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;padding:10px 12px;width:100%;outline:none;text-transform:uppercase">
+        </div>
+        <div class="form-group">
+          <label>DNI</label>
+          <input type="number" id="est-dni" placeholder="Sin puntos ni espacios"
+            style="background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;padding:10px 12px;width:100%;outline:none">
+        </div>
+        <div class="form-group">
+          <label>Foto del alumno</label>
+          <input type="file" id="est-foto" accept="image/*"
+            style="background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:8px;width:100%">
+          <div id="est-foto-preview" style="margin-top:8px;display:none">
+            <img id="est-foto-img" style="width:80px;height:80px;object-fit:cover;border-radius:8px;border:2px solid var(--border)">
+          </div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-primary" onclick="guardarEstudiante()">💾 Guardar</button>
+          <button class="btn btn-secondary" onclick="document.getElementById('form-est-individual').style.display='none'">Cancelar</button>
+        </div>
+        <div id="est-msg" style="margin-top:8px;font-size:13px"></div>
+      </div>
+    </div>
+
+    <!-- Formulario: importar CSV -->
+    <div id="form-est-importar" style="display:none">
+      <div class="card">
+        <div class="card-label">Importar desde CSV / Excel</div>
+        <p style="font-size:12px;color:var(--text2);margin-bottom:10px">
+          El archivo debe tener columnas: <strong>Apellido y Nombre</strong> | <strong>DNI</strong> | <strong>URL Foto</strong> (opcional)
+        </p>
+        <input type="file" id="est-csv" accept=".csv,.xlsx,.xls"
+          style="background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:8px;width:100%"
+          onchange="previsualizarCSV()">
+        <div id="csv-preview" style="margin-top:10px;max-height:200px;overflow-y:auto"></div>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button class="btn btn-primary" id="btn-confirmar-import" disabled onclick="confirmarImportacion()">📥 Importar</button>
+          <button class="btn btn-secondary" onclick="document.getElementById('form-est-importar').style.display='none'">Cancelar</button>
+        </div>
+        <div id="import-msg" style="margin-top:8px;font-size:13px"></div>
+      </div>
+    </div>
+
+    <!-- Lista de estudiantes del curso -->
+    <div class="card" id="card-est-lista" style="display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div class="card-label" style="margin:0">Alumnos del curso</div>
+        <span id="est-count" style="font-size:12px;color:var(--text2)"></span>
+      </div>
+      <div id="est-lista"></div>
+    </div>
+  </div>
+</section>
+
 <!-- ══════════════════════════════════════════════════════════
      SECCIÓN 3: GAFETES
 ══════════════════════════════════════════════════════════════ -->
@@ -759,6 +937,7 @@ function switchSection(sec, btn) {
   document.getElementById("sec-" + sec).classList.add("active");
   btn.classList.add("active");
   if (sec === "docente" && app.docAlumnos.length) actualizarPanelDocente();
+  if (sec === "cursos") cargarCursos();
 }
 
 function switchSubTab(sec, tab, btn) {
@@ -2074,13 +2253,18 @@ async function exportarPDF() {
   try {
     const {jsPDF} = window.jspdf;
     const pdf = new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
-    const A4W=210,A4H=297,GW=90,GH=60,COLS=2,ROWS=4,PPG=COLS*ROWS;
-    const MX=(A4W-COLS*GW)/2, MY=10;
-    const GAP=(A4H-MY*2-ROWS*GH)/(ROWS-1);
+    const A4W=210, A4H=297;
+    const GW=90, GH=60;       // tamaño de cada gafete
+    const COLS=2, ROWS=4, PPG=COLS*ROWS;
+    const GAP_H=6;             // separación horizontal entre columnas (mm)
+    const GAP_V=5;             // separación vertical entre filas (mm)
+    const totalW = COLS*GW + (COLS-1)*GAP_H;
+    const MX = (A4W - totalW) / 2;  // margen lateral centrado
+    const MY = 10;                   // margen superior
+
     const canvases=[];
     for (let i=0;i<app.gafVisibles.length;i++) {
       btn.textContent=`⏳ ${i+1}/${app.gafVisibles.length}`;
-      // Usar gafete ya renderizado en el DOM (tiene src en base64)
       const el = document.getElementById(`gafete-${i}`);
       if (el) {
         const cvs=await capturarGafete(el);
@@ -2091,7 +2275,8 @@ async function exportarPDF() {
       const pos=i%PPG;
       if (pos===0&&i>0) pdf.addPage();
       const col=pos%COLS, row=Math.floor(pos/COLS);
-      const x=MX+col*GW, y=MY+row*(GH+GAP);
+      const x = MX + col*(GW+GAP_H);
+      const y = MY + row*(GH+GAP_V);
       pdf.addImage(cvs.toDataURL("image/jpeg",.92),"JPEG",x,y,GW,GH);
     });
     const cur=document.getElementById("gaf-curso").value||"todos";
@@ -2880,6 +3065,411 @@ function imprimirInformeNotas() {
     win.document.head.appendChild(psn);
   } catch(e) {}
   setTimeout(function(){ try { win.print(); } catch(e){} }, 700);
+}
+
+
+// ════════════════════════════════════════════════════════════
+//  MÓDULO CURSOS Y ESTUDIANTES
+// ════════════════════════════════════════════════════════════
+const cursosApp = {
+  cursos:       [],
+  instituciones:[],
+  estudiantesCSV: [],
+};
+
+function switchSubTabCursos(tab, btn) {
+  document.querySelectorAll("#sec-cursos .sub-section").forEach(s => s.classList.remove("active"));
+  document.querySelectorAll("#cursos-subtabs .sub-tab").forEach(t => t.classList.remove("active"));
+  document.getElementById("cursos-" + tab).classList.add("active");
+  if (btn) btn.classList.add("active");
+  if (tab === "cursos")      cargarCursos();
+  if (tab === "estudiantes") cargarInstitucionesEst();
+}
+
+// ── ABM Cursos ───────────────────────────────────────────────
+async function cargarCursos() {
+  const lista = document.getElementById("cursos-lista");
+  lista.innerHTML = '<div class="empty-state"><div class="spinner" style="margin:0 auto"></div></div>';
+  try {
+    const res  = await fetch(`${ENDPOINT_URL}?action=getCursos`, {redirect:"follow"});
+    const data = await res.json();
+    cursosApp.cursos = data.cursos || [];
+    renderCursos();
+  } catch(e) {
+    lista.innerHTML = `<div class="empty-state" style="color:var(--red)">Error: ${e.message}</div>`;
+  }
+}
+
+function renderCursos() {
+  const lista = document.getElementById("cursos-lista");
+  if (!cursosApp.cursos.length) {
+    lista.innerHTML = '<div class="empty-state">No hay cursos configurados</div>';
+    return;
+  }
+  lista.innerHTML = cursosApp.cursos.map(c => `
+    <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;margin-bottom:6px">
+      <div style="width:10px;height:10px;border-radius:50%;background:${c.colorPpal||'var(--accent)'};flex-shrink:0"></div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600">${c.curso}° — ${c.modalidad}</div>
+        <div style="font-size:11px;color:var(--text2)">${c.materia}${c.docente?' · '+c.docente:''}</div>
+      </div>
+      <label style="display:flex;align-items:center;gap:5px;cursor:pointer;flex-shrink:0">
+        <input type="checkbox" ${c.activa?'checked':''} style="accent-color:var(--accent)"
+          onchange="toggleCurso(${c.fila},this.checked)">
+        <span style="font-size:11px;color:var(--text2)">${c.activa?'Activo':'Inactivo'}</span>
+      </label>
+    </div>`).join("");
+}
+
+async function crearCurso() {
+  const anio   = document.getElementById("cur-nuevo-anio").value;
+  const modal  = document.getElementById("cur-nuevo-modal").value.trim().toUpperCase();
+  const mat    = document.getElementById("cur-nuevo-materia").value.trim();
+  const color1 = document.getElementById("cur-nuevo-color1").value;
+  const color2 = document.getElementById("cur-nuevo-color2").value;
+  const tipo   = document.getElementById("cur-nuevo-tipo").value;
+  const doc    = document.getElementById("cur-nuevo-docente").value.trim();
+  if (!modal || !mat) { alert("Completá modalidad y materia"); return; }
+  try {
+    const res  = await fetch(ENDPOINT_URL, {
+      method:"POST", redirect:"follow",
+      headers:{"Content-Type":"text/plain;charset=UTF-8"},
+      body: JSON.stringify({ action:"crearCurso", curso:anio, modalidad:modal,
+        materia:mat, colorPpal:color1, colorSec:color2, tipoPeriodo:tipo, docente:doc })
+    });
+    const data = await res.json();
+    if (data.status === "ok") {
+      document.getElementById("cur-nuevo-modal").value = "";
+      document.getElementById("cur-nuevo-materia").value = "";
+      document.getElementById("cur-nuevo-docente").value = "";
+      await cargarCursos();
+      // Refrescar config global
+      sessionStorage.removeItem("ks_config");
+    } else { alert((data.status==="duplicado"?"Ya existe: ":"Error: ")+data.message); }
+  } catch(e) { alert("Error: "+e.message); }
+}
+
+async function toggleCurso(fila, activa) {
+  try {
+    await fetch(ENDPOINT_URL, {
+      method:"POST", redirect:"follow",
+      headers:{"Content-Type":"text/plain;charset=UTF-8"},
+      body: JSON.stringify({ action:"toggleCurso", fila, activa })
+    });
+    sessionStorage.removeItem("ks_config");
+  } catch(e) { console.warn(e); }
+}
+
+// ── Estudiantes: filtros en cascada ─────────────────────────
+async function cargarInstitucionesEst() {
+  try {
+    const res  = await fetch(`${ENDPOINT_URL}?action=getInstitucion`, {redirect:"follow"});
+    const data = await res.json();
+    cursosApp.instituciones = data.instituciones || [];
+    const sel = document.getElementById("est-inst");
+    sel.innerHTML = '<option value="">— Institución —</option>';
+    const insts = [...new Set(cursosApp.instituciones.map(i => i.institucion))];
+    insts.forEach(i => { const o=document.createElement("option"); o.value=i; o.textContent=i; sel.appendChild(o); });
+    document.getElementById("est-loc").disabled   = true;
+    document.getElementById("est-curso").disabled = true;
+    document.getElementById("est-modal").disabled = true;
+  } catch(e) {}
+}
+
+function onEstInstChange() {
+  const inst = document.getElementById("est-inst").value;
+  const sel  = document.getElementById("est-loc");
+  sel.innerHTML = '<option value="">— Localidad —</option>';
+  const locs = [...new Set(cursosApp.instituciones.filter(i=>i.institucion===inst).map(i=>i.localidad))];
+  locs.forEach(l => { const o=document.createElement("option"); o.value=l; o.textContent=l||"(sin localidad)"; sel.appendChild(o); });
+  sel.disabled = false;
+  document.getElementById("est-curso").disabled = true;
+  document.getElementById("est-modal").disabled = true;
+  document.getElementById("btn-est-agregar").disabled  = true;
+  document.getElementById("btn-est-importar").disabled = true;
+}
+
+function onEstLocChange() {
+  const sel = document.getElementById("est-curso");
+  sel.innerHTML = '<option value="">— Curso —</option>';
+  // Obtener cursos únicos de app.config
+  const cursos = [...new Set(app.config.map(c=>c.curso))].sort();
+  cursos.forEach(c => { const o=document.createElement("option"); o.value=c; o.textContent=c+"° año"; sel.appendChild(o); });
+  sel.disabled = false;
+  document.getElementById("est-modal").disabled = true;
+  document.getElementById("btn-est-agregar").disabled  = true;
+  document.getElementById("btn-est-importar").disabled = true;
+}
+
+function onEstCursoChange() {
+  const curso = document.getElementById("est-curso").value;
+  const sel   = document.getElementById("est-modal");
+  sel.innerHTML = '<option value="">— Modalidad —</option>';
+  const mods = [...new Set(app.config.filter(c=>c.curso==curso).map(c=>c.modalidad))];
+  mods.forEach(m => { const o=document.createElement("option"); o.value=m; o.textContent=m; sel.appendChild(o); });
+  sel.disabled = false;
+  document.getElementById("btn-est-agregar").disabled  = true;
+  document.getElementById("btn-est-importar").disabled = true;
+}
+
+async function onEstModalChange() {
+  const ok = document.getElementById("est-inst").value &&
+             document.getElementById("est-curso").value &&
+             document.getElementById("est-modal").value;
+  document.getElementById("btn-est-agregar").disabled  = !ok;
+  document.getElementById("btn-est-importar").disabled = !ok;
+  if (ok) await cargarListaEstudiantes();
+}
+
+async function cargarListaEstudiantes() {
+  const curso = document.getElementById("est-curso").value;
+  const modal = document.getElementById("est-modal").value;
+  const card  = document.getElementById("card-est-lista");
+  const lista = document.getElementById("est-lista");
+  card.style.display = "block";
+  lista.innerHTML = '<div class="empty-state"><div class="spinner" style="margin:0 auto"></div></div>';
+  try {
+    const url  = `${ENDPOINT_URL}?action=getEstudiantes&curso=${encodeURIComponent(curso)}&modalidad=${encodeURIComponent(modal)}`;
+    const res  = await fetch(url, {redirect:"follow"});
+    const data = await res.json();
+    const alumnos = data.estudiantes || [];
+    document.getElementById("est-count").textContent = `${alumnos.length} alumnos`;
+    if (!alumnos.length) { lista.innerHTML = '<div class="empty-state">Sin alumnos registrados</div>'; return; }
+    lista.innerHTML = alumnos.map((a,i) => `
+      <div style="display:flex;align-items:center;gap:10px;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:8px;margin-bottom:5px">
+        <div style="width:36px;height:36px;border-radius:50%;overflow:hidden;flex-shrink:0;background:var(--surface2)">
+          ${a.fotoUrl
+            ? `<img src="${a.fotoUrl}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">`
+            : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:16px">👤</div>`}
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600">${a.nombre}</div>
+          <div style="font-size:11px;color:var(--text2)">DNI: ${a.dni}</div>
+        </div>
+        ${!a.fotoUrl ? `<button class="btn btn-sm" style="font-size:11px;padding:4px 8px;background:var(--surface2)" onclick="agregarFotoAlumno('${a.dni}','${a.nombre.replace(/'/g,"\\'")}')">📷 Foto</button>` : ''}
+      </div>`).join("");
+  } catch(e) {
+    lista.innerHTML = `<div class="empty-state" style="color:var(--red)">Error: ${e.message}</div>`;
+  }
+}
+
+// ── Agregar estudiante individual ────────────────────────────
+function abrirFormEstudiante() {
+  document.getElementById("form-est-individual").style.display = "block";
+  document.getElementById("form-est-importar").style.display  = "none";
+  document.getElementById("est-nombre").value = "";
+  document.getElementById("est-dni").value    = "";
+  document.getElementById("est-foto").value   = "";
+  document.getElementById("est-foto-preview").style.display = "none";
+  document.getElementById("est-msg").textContent = "";
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const fotoInput = document.getElementById("est-foto");
+  if (fotoInput) {
+    fotoInput.addEventListener("change", function() {
+      const file = this.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        document.getElementById("est-foto-img").src = e.target.result;
+        document.getElementById("est-foto-preview").style.display = "block";
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+});
+
+async function guardarEstudiante() {
+  const nombre = document.getElementById("est-nombre").value.trim().toUpperCase();
+  const dni    = document.getElementById("est-dni").value.trim();
+  const curso  = document.getElementById("est-curso").value;
+  const modal  = document.getElementById("est-modal").value;
+  const inst   = document.getElementById("est-inst").value;
+  const loc    = document.getElementById("est-loc").value;
+  const msg    = document.getElementById("est-msg");
+
+  if (!nombre || !dni) { msg.textContent = "⚠ Completá nombre y DNI"; msg.style.color="var(--yellow)"; return; }
+
+  // Procesar foto si se seleccionó
+  let fotoBase64 = "", fotoMime = "", fotoNombre = "";
+  const fotoFile = document.getElementById("est-foto").files[0];
+  if (fotoFile) {
+    fotoBase64 = await new Promise(res => {
+      const r = new FileReader();
+      r.onload = e => res(e.target.result.split(",")[1]);
+      r.readAsDataURL(fotoFile);
+    });
+    fotoMime   = fotoFile.type;
+    fotoNombre = `${dni}_${nombre.replace(/\s+/g,"_")}.${fotoFile.name.split(".").pop()}`;
+  }
+
+  // Obtener logoUrl de la institución seleccionada
+  const instData = cursosApp.instituciones.find(i => i.institucion === inst);
+  const logoUrl  = instData ? instData.logoUrl : "";
+
+  msg.textContent = "⏳ Guardando..."; msg.style.color = "var(--text2)";
+  try {
+    const res  = await fetch(ENDPOINT_URL, {
+      method:"POST", redirect:"follow",
+      headers:{"Content-Type":"text/plain;charset=UTF-8"},
+      body: JSON.stringify({ action:"agregarEstudiante",
+        nombre, dni, curso, modalidad:modal, institucion:inst, localidad:loc,
+        logoUrl, fotoBase64, fotoMime, fotoNombre })
+    });
+    const data = await res.json();
+    if (data.status === "ok") {
+      msg.textContent = `✓ ${nombre} agregado correctamente`;
+      msg.style.color = "var(--green)";
+      document.getElementById("est-nombre").value = "";
+      document.getElementById("est-dni").value    = "";
+      document.getElementById("est-foto").value   = "";
+      document.getElementById("est-foto-preview").style.display = "none";
+      await cargarListaEstudiantes();
+    } else if (data.status === "duplicado") {
+      msg.textContent = `⚠ El DNI ${dni} ya existe (${data.nombre})`;
+      msg.style.color = "var(--yellow)";
+    } else {
+      msg.textContent = `✗ Error: ${data.message}`;
+      msg.style.color = "var(--red)";
+    }
+  } catch(e) { msg.textContent = "✗ Error de red"; msg.style.color="var(--red)"; }
+}
+
+// ── Importar CSV ─────────────────────────────────────────────
+function abrirImportEstudiantes() {
+  document.getElementById("form-est-importar").style.display  = "block";
+  document.getElementById("form-est-individual").style.display = "none";
+  document.getElementById("csv-preview").innerHTML = "";
+  document.getElementById("import-msg").textContent = "";
+  document.getElementById("btn-confirmar-import").disabled = true;
+  cursosApp.estudiantesCSV = [];
+}
+
+async function previsualizarCSV() {
+  const file = document.getElementById("est-csv").files[0];
+  if (!file) return;
+  const preview = document.getElementById("csv-preview");
+  preview.innerHTML = '<div class="empty-state"><div class="spinner" style="margin:0 auto"></div></div>';
+
+  try {
+    let rows = [];
+    if (file.name.endsWith(".csv")) {
+      const text = await file.text();
+      rows = text.split("\n").map(r => r.split(/[,;]/).map(c => c.trim().replace(/^"|"$/g,"")));
+    } else {
+      // Excel: usar SheetJS
+      const buf = await file.arrayBuffer();
+      const wb  = XLSX.read(buf);
+      const ws  = wb.Sheets[wb.SheetNames[0]];
+      rows = XLSX.utils.sheet_to_json(ws, {header:1});
+    }
+
+    // Detectar si la primera fila es encabezado
+    const primera = rows[0] || [];
+    const esEncabezado = primera.some(c => isNaN(c) && c.length > 2);
+    const dataRows = esEncabezado ? rows.slice(1) : rows;
+
+    cursosApp.estudiantesCSV = dataRows
+      .filter(r => r.length >= 2 && r[0] && r[1])
+      .map(r => ({ nombre: r[0].toString().trim().toUpperCase(), dni: r[1].toString().trim(), fotoUrl: r[2]||"" }));
+
+    if (!cursosApp.estudiantesCSV.length) {
+      preview.innerHTML = '<div class="empty-state" style="color:var(--red)">No se encontraron datos válidos</div>';
+      return;
+    }
+
+    preview.innerHTML = `
+      <div style="font-size:12px;color:var(--text2);margin-bottom:6px">${cursosApp.estudiantesCSV.length} alumnos encontrados:</div>
+      <table style="width:100%;font-size:11px;border-collapse:collapse">
+        <tr style="background:var(--surface2)">
+          <th style="padding:4px 6px;text-align:left">Nombre</th>
+          <th style="padding:4px 6px;text-align:left">DNI</th>
+        </tr>
+        ${cursosApp.estudiantesCSV.slice(0,10).map(e => `
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:4px 6px">${e.nombre}</td>
+            <td style="padding:4px 6px">${e.dni}</td>
+          </tr>`).join("")}
+        ${cursosApp.estudiantesCSV.length>10?`<tr><td colspan="2" style="padding:4px 6px;color:var(--text2)">... y ${cursosApp.estudiantesCSV.length-10} más</td></tr>`:""}
+      </table>`;
+    document.getElementById("btn-confirmar-import").disabled = false;
+  } catch(e) {
+    preview.innerHTML = `<div class="empty-state" style="color:var(--red)">Error leyendo archivo: ${e.message}</div>`;
+  }
+}
+
+async function confirmarImportacion() {
+  if (!cursosApp.estudiantesCSV.length) return;
+  const curso = document.getElementById("est-curso").value;
+  const modal = document.getElementById("est-modal").value;
+  const inst  = document.getElementById("est-inst").value;
+  const loc   = document.getElementById("est-loc").value;
+  const instData = cursosApp.instituciones.find(i => i.institucion === inst);
+  const logoUrl  = instData ? instData.logoUrl : "";
+  const msg   = document.getElementById("import-msg");
+  const btn   = document.getElementById("btn-confirmar-import");
+
+  msg.textContent = "⏳ Importando..."; msg.style.color = "var(--text2)";
+  btn.disabled = true;
+
+  try {
+    const res  = await fetch(ENDPOINT_URL, {
+      method:"POST", redirect:"follow",
+      headers:{"Content-Type":"text/plain;charset=UTF-8"},
+      body: JSON.stringify({ action:"importarEstudiantes",
+        estudiantes: cursosApp.estudiantesCSV,
+        curso, modalidad:modal, institucion:inst, localidad:loc, logoUrl })
+    });
+    const data = await res.json();
+    let txt = `✓ ${data.agregados} alumnos importados`;
+    if (data.duplicados?.length) txt += ` | ⚠ ${data.duplicados.length} DNIs ya existían`;
+    msg.textContent = txt;
+    msg.style.color = "var(--green)";
+    await cargarListaEstudiantes();
+    document.getElementById("form-est-importar").style.display = "none";
+  } catch(e) {
+    msg.textContent = "✗ Error: " + e.message;
+    msg.style.color = "var(--red)";
+    btn.disabled = false;
+  }
+}
+
+// ── Agregar foto a alumno existente ──────────────────────────
+async function agregarFotoAlumno(dni, nombre) {
+  const input = document.createElement("input");
+  input.type  = "file"; input.accept = "image/*";
+  input.onchange = async () => {
+    const file = input.files[0];
+    if (!file) return;
+    const fotoBase64 = await new Promise(res => {
+      const r = new FileReader();
+      r.onload = e => res(e.target.result.split(",")[1]);
+      r.readAsDataURL(file);
+    });
+    const curso  = document.getElementById("est-curso").value;
+    const modal  = document.getElementById("est-modal").value;
+    const inst   = document.getElementById("est-inst").value;
+    const loc    = document.getElementById("est-loc").value;
+    const instData = cursosApp.instituciones.find(i => i.institucion === inst);
+    const logoUrl  = instData ? instData.logoUrl : "";
+    try {
+      const res = await fetch(ENDPOINT_URL, {
+        method:"POST", redirect:"follow",
+        headers:{"Content-Type":"text/plain;charset=UTF-8"},
+        body: JSON.stringify({ action:"agregarEstudiante",
+          nombre, dni, curso, modalidad:modal, institucion:inst, localidad:loc, logoUrl,
+          fotoBase64, fotoMime:file.type,
+          fotoNombre:`${dni}.${file.name.split(".").pop()}`,
+          soloFoto: true })
+      });
+      const data = await res.json();
+      if (data.status === "ok" || data.status === "duplicado") {
+        await cargarListaEstudiantes();
+      }
+    } catch(e) { alert("Error subiendo foto: " + e.message); }
+  };
+  input.click();
 }
 
 function fmtFecha(iso) {
