@@ -940,6 +940,21 @@ select:focus,input[type="date"]:focus{border-color:var(--accent)}
   <!-- ── Sub-tab: Croquis del aula ────────────────────────── -->
   <div class="sub-section" id="cursos-croquis" style="padding:14px;gap:12px">
 
+    <!-- Filtros independientes del croquis -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:4px">
+      <div class="card-label" style="margin-bottom:8px">Seleccioná el curso</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div class="ctrl-group">
+          <span class="ctrl-label">Curso</span>
+          <select id="cro-curso" onchange="onCroCursoChange()"><option value="">— Curso —</option></select>
+        </div>
+        <div class="ctrl-group">
+          <span class="ctrl-label">Modalidad</span>
+          <select id="cro-modal" disabled onchange="onCroModalChange()"><option value="">— Modalidad —</option></select>
+        </div>
+      </div>
+    </div>
+
     <!-- Config del aula -->
     <div class="card" id="croquis-config-card">
       <div class="card-label">Configuración del aula</div>
@@ -978,11 +993,11 @@ select:focus,input[type="date"]:focus{border-color:var(--accent)}
 
     <!-- Área del croquis -->
     <div id="croquis-area" style="display:none">
-      <!-- Pizarrón/frente del aula -->
-      <div style="text-align:center;padding:8px;background:var(--surface2);border:2px solid var(--border);border-radius:6px;font-size:12px;font-weight:600;color:var(--text2);margin-bottom:12px;letter-spacing:1px">
+      <div id="croquis-grid"></div>
+      <!-- Pizarrón/frente del aula — al pie (vista desde el fondo del aula) -->
+      <div style="text-align:center;padding:8px;background:var(--surface2);border:2px solid var(--border);border-radius:6px;font-size:12px;font-weight:600;color:var(--text2);margin-top:12px;letter-spacing:1px">
         ▬▬ FRENTE DEL AULA / PIZARRÓN ▬▬
       </div>
-      <div id="croquis-grid"></div>
 
       <!-- Panel de alumnos sin asignar -->
       <div id="croquis-sin-asignar" style="margin-top:12px;display:none">
@@ -1160,6 +1175,7 @@ async function cargarConfig() {
     if (d2.status === "ok") {
       app.gafGrupos = d2.grupos;
       poblarCursosGafetes();
+  poblarSelectoresCroquis();
     }
   } catch(e) { console.warn("getConfigGafetes:", e); }
 }
@@ -3517,7 +3533,7 @@ function switchSubTabCursos(tab, btn) {
   if (btn) btn.classList.add("active");
   if (tab === "cursos")      cargarCursos();
   if (tab === "estudiantes") cargarInstitucionesEst();
-  if (tab === "croquis")     { /* el croquis requiere curso seleccionado — ver botón Generar */ }
+  if (tab === "croquis")     poblarSelectoresCroquis();
 }
 
 // ── ABM Cursos ───────────────────────────────────────────────
@@ -3708,15 +3724,23 @@ async function cargarListaEstudiantes() {
     const alumnos = data.estudiantes || [];
     document.getElementById("est-count").textContent = `${alumnos.length} alumnos`;
     if (!alumnos.length) { lista.innerHTML = '<div class="empty-state">Sin alumnos registrados</div>'; return; }
+
+    // Pre-cargar fotos vía proxy (resuelve CORS de Drive)
+    const urlsFoto = alumnos.map(a => a.fotoUrl).filter(u => u && !u.startsWith("data:"));
+    for (let i = 0; i < urlsFoto.length; i += 4) {
+      await Promise.all(urlsFoto.slice(i, i+4).map(u => cargarImgBase64(u)));
+    }
+
     lista.innerHTML = alumnos.map((a,i) => {
       const nom    = a.nombre.replace(/\\/g,"\\\\").replace(/'/g,"\\'");
       const activo = a.activo !== false;
-      const fotoHtml = a.fotoUrl
-        ? `<img src="${a.fotoUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:50%"
+      const fotoSrc = a.fotoUrl ? (imgCache[a.fotoUrl] || a.fotoUrl) : "";
+      const fotoHtml = fotoSrc
+        ? `<img src="${fotoSrc}" style="width:100%;height:100%;object-fit:cover;border-radius:50%"
              onerror="this.parentElement.innerHTML='<div style=\\'width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:18px\\'>👤</div>'">`
         : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:18px">👤</div>`;
       return `
-      <div style="display:flex;align-items:center;gap:10px;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:8px;margin-bottom:5px;opacity:${activo?1:0.5}">
+      <div data-dni="${a.dni}" style="display:flex;align-items:center;gap:10px;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:8px;margin-bottom:5px;opacity:${activo?1:0.5}">
         <div style="width:40px;height:40px;border-radius:50%;overflow:hidden;flex-shrink:0;background:var(--surface2);border:2px solid var(--border)">
           ${fotoHtml}
         </div>
@@ -3962,6 +3986,12 @@ async function agregarFotoAlumno(dni, nombre) {
   input.onchange = async () => {
     const file = input.files[0];
     if (!file) return;
+
+    // Mostrar indicador de carga
+    const lista = document.getElementById("est-lista");
+    const filaEl = lista.querySelector(`[data-dni="${dni}"]`);
+    if (filaEl) filaEl.style.opacity = "0.5";
+
     const fotoBase64 = await new Promise(res => {
       const r = new FileReader();
       r.onload = e => res(e.target.result.split(",")[1]);
@@ -3984,10 +4014,18 @@ async function agregarFotoAlumno(dni, nombre) {
           soloFoto: true })
       });
       const data = await res.json();
-      if (data.status === "ok" || data.status === "duplicado") {
+      if (data.status === "ok") {
+        // Limpiar cache de la foto vieja y recargar lista
+        delete imgCache[data.fotoUrl];
         await cargarListaEstudiantes();
+      } else {
+        alert("Error: " + data.message);
+        if (filaEl) filaEl.style.opacity = "1";
       }
-    } catch(e) { alert("Error subiendo foto: " + e.message); }
+    } catch(e) {
+      alert("Error subiendo foto: " + e.message);
+      if (filaEl) filaEl.style.opacity = "1";
+    }
   };
   input.click();
 }
@@ -4285,10 +4323,33 @@ const croquis = {
   modoAsistencia: false,
 };
 
+// ── Filtros independientes del croquis ──────────────────────
+function onCroCursoChange() {
+  const curso = document.getElementById("cro-curso").value;
+  const sel   = document.getElementById("cro-modal");
+  sel.innerHTML = '<option value="">— Modalidad —</option>';
+  const mods = [...new Set(app.config.filter(c => c.curso == curso).map(c => c.modalidad))];
+  mods.forEach(m => { const o=document.createElement("option"); o.value=m; o.textContent=m; sel.appendChild(o); });
+  sel.disabled = !curso;
+}
+function onCroModalChange() {
+  // Habilitar botón generar si hay selección completa
+  const ok = document.getElementById("cro-curso").value && document.getElementById("cro-modal").value;
+  // El botón ya está ahí, solo validar
+}
+// Poblar selector de curso del croquis
+function poblarSelectoresCroquis() {
+  const sel = document.getElementById("cro-curso");
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— Curso —</option>';
+  const cursos = [...new Set(app.config.map(c => c.curso))].sort();
+  cursos.forEach(c => { const o=document.createElement("option"); o.value=c; o.textContent=c+"° año"; sel.appendChild(o); });
+}
+
 async function iniciarCroquis() {
-  const curso  = document.getElementById("est-curso").value;
-  const modal  = document.getElementById("est-modal").value;
-  if (!curso || !modal) { alert("Seleccioná curso y modalidad primero en la sub-tab Estudiantes."); return; }
+  const curso  = document.getElementById("cro-curso").value;
+  const modal  = document.getElementById("cro-modal").value;
+  if (!curso || !modal) { alert("Seleccioná curso y modalidad del croquis."); return; }
 
   croquis.filas = parseInt(document.getElementById("croquis-filas").value) || 5;
   croquis.cols  = parseInt(document.getElementById("croquis-cols").value)  || 5;
@@ -4479,8 +4540,8 @@ function asignarAlumnoBanco(dni) {
 
 // ── Guardar disposición ──────────────────────────────────────
 async function guardarCroquis() {
-  const curso = document.getElementById("est-curso").value;
-  const modal = document.getElementById("est-modal").value;
+  const curso = document.getElementById("cro-curso").value || document.getElementById("est-curso").value;
+  const modal = document.getElementById("cro-modal").value || document.getElementById("est-modal").value;
   const btn   = document.getElementById("btn-croquis-guardar");
   btn.textContent = "⏳"; btn.disabled = true;
   try {
