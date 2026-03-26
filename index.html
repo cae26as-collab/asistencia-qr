@@ -182,6 +182,31 @@ select:focus,input[type="date"]:focus{border-color:var(--accent)}
 .stats-bar{padding:8px 16px;font-size:13px;color:var(--text2);display:flex;align-items:center;gap:12px}
 .stats-badge{background:var(--accent);color:#fff;font-size:12px;font-weight:700;padding:2px 9px;border-radius:20px}
 
+/* ── CROQUIS ── */
+.banco{position:relative;border-radius:8px;border:2px solid var(--border);background:var(--bg);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:4px;padding:6px 4px;cursor:pointer;transition:all var(--tr);min-height:72px}
+.banco:hover{border-color:var(--accent);background:var(--surface2)}
+.banco.ocupado{border-color:var(--border)}
+.banco.vacio{border-style:dashed;opacity:0.6}
+.banco.drag-over{border-color:var(--accent);background:var(--surface2);transform:scale(1.05)}
+.banco.presente{border-color:#22c55e!important;box-shadow:0 0 0 2px #22c55e44}
+.banco.ausente .banco-foto{opacity:0.35}
+.banco.ausente{border-color:#6b728066!important}
+.banco-foto{width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid var(--border)}
+.banco-foto-placeholder{width:44px;height:44px;border-radius:50%;background:var(--surface2);
+  display:flex;align-items:center;justify-content:center;font-size:20px;border:2px solid var(--border)}
+.banco-nombre{font-size:9px;font-weight:600;text-align:center;color:var(--text2);
+  line-height:1.2;max-width:68px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pool-alumno{display:flex;flex-direction:column;align-items:center;gap:3px;cursor:grab;
+  padding:6px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);
+  width:72px;transition:all var(--tr)}
+.pool-alumno:hover{border-color:var(--accent)}
+.pool-alumno img{width:38px;height:38px;border-radius:50%;object-fit:cover}
+.pool-alumno span{font-size:9px;text-align:center;color:var(--text2);line-height:1.2;
+  max-width:66px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ── PRINT ── */
 /* ── PRINT ── */
 @media print{
   * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
@@ -601,39 +626,108 @@ select:focus,input[type="date"]:focus{border-color:var(--accent)}
 
   <!-- ── Sub-tab: Fichas membretadas ──────────────────────── -->
   <div class="sub-section" id="notas-fichas" style="padding:14px;gap:12px">
-    <div class="card">
-      <div class="card-label">Generar fichas de trabajo membretadas</div>
-      <p style="font-size:12px;color:var(--text2);margin-bottom:12px">
-        Genera una hoja A4 por alumno con encabezado institucional, QR del trabajo y espacio para la actividad.
-        Al escanear el QR en <strong>Notas → Escanear</strong> se registra automáticamente.
-      </p>
 
-      <div class="form-group">
-        <label>Trabajo</label>
-        <select id="fic-trabajo" onchange="onFicTrabajoChange()">
+    <!-- Selector de trabajo -->
+    <div class="card">
+      <div class="card-label">Trabajo</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select id="fic-trabajo" onchange="onFicTrabajoChange()" style="flex:1">
           <option value="">— Seleccioná un trabajo —</option>
         </select>
+        <button class="btn btn-sm btn-secondary" id="btn-fic-cargar" disabled onclick="cargarFichaGuardada()" title="Cargar ficha guardada">📂</button>
+        <button class="btn btn-sm btn-secondary" id="btn-fic-guardar" disabled onclick="guardarFichaActual()" title="Guardar ficha">💾</button>
       </div>
+      <div id="fic-saved-info" style="font-size:11px;color:var(--text2);margin-top:6px;display:none"></div>
+    </div>
 
-      <div style="display:flex;align-items:center;gap:10px;margin:10px 0;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px">
+    <!-- Opciones de formato -->
+    <div class="card" id="fic-form-card" style="display:none">
+      <div class="card-label">Configuración de la ficha</div>
+
+      <!-- Consigna -->
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:8px">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
-          <input type="checkbox" id="fic-con-contenido" style="accent-color:var(--accent)">
-          Incluir texto de la actividad en la ficha
+          <input type="checkbox" id="fic-con-contenido" style="accent-color:var(--accent)" onchange="toggleFicContenido()">
+          Incluir texto de la actividad
         </label>
       </div>
 
-      <div id="fic-contenido-wrap" style="display:none">
+      <div id="fic-contenido-wrap" style="display:none;margin-bottom:10px">
+        <!-- Fuente y tamaño -->
+        <div style="display:grid;grid-template-columns:1fr 80px;gap:8px;margin-bottom:8px">
+          <div class="form-group">
+            <label>Fuente</label>
+            <select id="fic-fuente">
+              <option value="Arial">Arial</option>
+              <option value="Times New Roman">Times New Roman</option>
+              <option value="Calibri">Calibri</option>
+              <option value="Georgia">Georgia</option>
+              <option value="Verdana">Verdana</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Tamaño</label>
+            <select id="fic-tamano">
+              <option value="10">10pt</option>
+              <option value="11" selected>11pt</option>
+              <option value="12">12pt</option>
+              <option value="14">14pt</option>
+            </select>
+          </div>
+        </div>
         <div class="form-group">
-          <label>Texto de la actividad / consigna</label>
-          <textarea id="fic-contenido-texto" rows="6"
+          <label>Texto de la consigna</label>
+          <textarea id="fic-contenido-texto" rows="5"
             placeholder="Escribí aquí la consigna de la actividad..."
             style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:10px 12px;outline:none;resize:vertical;font-family:inherit"></textarea>
         </div>
       </div>
 
-      <button class="btn btn-primary" id="btn-gen-fichas" disabled onclick="generarFichas()">
-        📄 Generar fichas
-      </button>
+      <!-- Opciones adicionales -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+        <div class="form-group">
+          <label>Orientación</label>
+          <select id="fic-orientacion">
+            <option value="portrait">Vertical (A4)</option>
+            <option value="landscape">Horizontal (A4)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Márgenes</label>
+          <select id="fic-margenes">
+            <option value="15mm 18mm">Normal (15mm)</option>
+            <option value="20mm 25mm">Amplio (20mm)</option>
+            <option value="10mm 12mm">Estrecho (10mm)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Líneas de renglón -->
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:8px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;flex:1">
+          <input type="checkbox" id="fic-con-lineas" style="accent-color:var(--accent)">
+          Líneas de renglón en el cuerpo
+        </label>
+        <div style="display:flex;align-items:center;gap:6px">
+          <label style="font-size:12px;color:var(--text2)">Cantidad:</label>
+          <input type="number" id="fic-cant-lineas" value="20" min="5" max="40"
+            style="width:55px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;padding:4px 8px;outline:none">
+        </div>
+      </div>
+
+      <!-- Pie de página -->
+      <div style="display:flex;align-items:center;gap:10px;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:8px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+          <input type="checkbox" id="fic-con-pie" style="accent-color:var(--accent)">
+          Pie de página (fecha + línea de firma)
+        </label>
+      </div>
+
+      <!-- Botones -->
+      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+        <button class="btn btn-primary" id="btn-gen-fichas" disabled onclick="generarFichas()">📄 Generar fichas</button>
+        <button class="btn btn-secondary btn-sm" onclick="previsualizarFicha()">👁 Previsualizar</button>
+      </div>
     </div>
 
     <div id="fic-info" style="display:none;font-size:12px;color:var(--text2);padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:8px"></div>
@@ -656,6 +750,7 @@ select:focus,input[type="date"]:focus{border-color:var(--accent)}
   <div class="sub-tabs" id="cursos-subtabs">
     <div class="sub-tab active" onclick="switchSubTabCursos('cursos',this)">✏️ Crear/Editar</div>
     <div class="sub-tab" onclick="switchSubTabCursos('estudiantes',this)">👥 Estudiantes</div>
+    <div class="sub-tab" onclick="switchSubTabCursos('croquis',this)">🗺 Croquis</div>
   </div>
 
   <!-- ── Sub-tab: Cursos (ABM) ──────────────────────────────── -->
@@ -841,6 +936,77 @@ select:focus,input[type="date"]:focus{border-color:var(--accent)}
       <div id="est-lista"></div>
     </div>
   </div>
+
+  <!-- ── Sub-tab: Croquis del aula ────────────────────────── -->
+  <div class="sub-section" id="cursos-croquis" style="padding:14px;gap:12px">
+
+    <!-- Config del aula -->
+    <div class="card" id="croquis-config-card">
+      <div class="card-label">Configuración del aula</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
+        <div class="form-group">
+          <label>Filas</label>
+          <input type="number" id="croquis-filas" value="5" min="1" max="10"
+            style="background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;padding:8px 12px;width:100%;outline:none">
+        </div>
+        <div class="form-group">
+          <label>Columnas</label>
+          <input type="number" id="croquis-cols" value="5" min="1" max="8"
+            style="background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;padding:8px 12px;width:100%;outline:none">
+        </div>
+        <div class="form-group">
+          <label>Modo</label>
+          <select id="croquis-modo">
+            <option value="grilla">Grilla fija</option>
+            <option value="libre">Posición libre</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-primary btn-sm" onclick="iniciarCroquis()">🗺 Generar croquis</button>
+        <button class="btn btn-secondary btn-sm" id="btn-croquis-guardar" style="display:none" onclick="guardarCroquis()">💾 Guardar disposición</button>
+        <button class="btn btn-secondary btn-sm" id="btn-croquis-asistencia" style="display:none" onclick="toggleModoAsistencia()">👁 Ver asistencia</button>
+      </div>
+    </div>
+
+    <!-- Leyenda modo asistencia -->
+    <div id="croquis-leyenda" style="display:none;gap:16px;font-size:12px;color:var(--text2);padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px">
+      <span style="display:flex;align-items:center;gap:6px"><span style="width:14px;height:14px;border-radius:50%;background:#22c55e;display:inline-block"></span>Presente</span>
+      <span style="display:flex;align-items:center;gap:6px"><span style="width:14px;height:14px;border-radius:50%;background:#6b7280;display:inline-block"></span>Ausente</span>
+      <span style="display:flex;align-items:center;gap:6px"><span style="width:14px;height:14px;border-radius:50%;background:var(--border);display:inline-block"></span>Banco vacío</span>
+    </div>
+
+    <!-- Área del croquis -->
+    <div id="croquis-area" style="display:none">
+      <!-- Pizarrón/frente del aula -->
+      <div style="text-align:center;padding:8px;background:var(--surface2);border:2px solid var(--border);border-radius:6px;font-size:12px;font-weight:600;color:var(--text2);margin-bottom:12px;letter-spacing:1px">
+        ▬▬ FRENTE DEL AULA / PIZARRÓN ▬▬
+      </div>
+      <div id="croquis-grid"></div>
+
+      <!-- Panel de alumnos sin asignar -->
+      <div id="croquis-sin-asignar" style="margin-top:12px;display:none">
+        <div class="card-label" style="margin-bottom:8px">Sin asignar</div>
+        <div id="croquis-alumnos-pool" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+      </div>
+    </div>
+
+    <!-- Modal para asignar alumno a banco -->
+    <div id="croquis-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center">
+      <div style="background:var(--surface);border-radius:12px;padding:20px;width:90%;max-width:380px;max-height:80vh;overflow-y:auto">
+        <div style="font-size:15px;font-weight:700;margin-bottom:12px">Asignar alumno al banco</div>
+        <input type="text" id="croquis-search" placeholder="Buscar alumno..."
+          oninput="filtrarAlumnosCroquis()"
+          style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:8px 12px;outline:none;margin-bottom:10px">
+        <div id="croquis-lista-modal" style="display:flex;flex-direction:column;gap:6px;max-height:300px;overflow-y:auto"></div>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <button class="btn btn-secondary" style="flex:1" onclick="cerrarModalCroquis()">Cancelar</button>
+          <button class="btn btn-danger btn-sm" id="btn-croquis-vaciar" onclick="vaciarBanco()" style="display:none">Quitar alumno</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </section>
 
 <!-- ══════════════════════════════════════════════════════════
@@ -3351,6 +3517,7 @@ function switchSubTabCursos(tab, btn) {
   if (btn) btn.classList.add("active");
   if (tab === "cursos")      cargarCursos();
   if (tab === "estudiantes") cargarInstitucionesEst();
+  if (tab === "croquis")     { /* el croquis requiere curso seleccionado — ver botón Generar */ }
 }
 
 // ── ABM Cursos ───────────────────────────────────────────────
@@ -3823,6 +3990,520 @@ async function agregarFotoAlumno(dni, nombre) {
     } catch(e) { alert("Error subiendo foto: " + e.message); }
   };
   input.click();
+}
+
+
+// ════════════════════════════════════════════════════════════
+//  MÓDULO FICHAS MEJORADAS
+// ════════════════════════════════════════════════════════════
+
+function toggleFicContenido() {
+  const chk = document.getElementById("fic-con-contenido");
+  document.getElementById("fic-contenido-wrap").style.display = chk.checked ? "block" : "none";
+}
+
+function onFicTrabajoChange() {
+  const val = document.getElementById("fic-trabajo").value;
+  const tiene = !!val;
+  document.getElementById("btn-gen-fichas").disabled  = !tiene;
+  document.getElementById("btn-fic-cargar").disabled  = !tiene;
+  document.getElementById("btn-fic-guardar").disabled = !tiene;
+  document.getElementById("fic-form-card").style.display = tiene ? "block" : "none";
+  document.getElementById("fic-saved-info").style.display = "none";
+  if (tiene) cargarFichaGuardada(true); // carga silenciosa
+}
+
+// ── Guardar ficha en Drive ───────────────────────────────────
+async function guardarFichaActual() {
+  const trabajoRaw = document.getElementById("fic-trabajo").value;
+  if (!trabajoRaw) return;
+  const trabajo = JSON.parse(trabajoRaw);
+  const curso   = document.getElementById("not-curso").value;
+  const modal   = document.getElementById("not-modalidad").value;
+  const materia = document.getElementById("not-materia").value;
+  const btn     = document.getElementById("btn-fic-guardar");
+  btn.textContent = "⏳"; btn.disabled = true;
+  try {
+    const config = leerConfigFicha();
+    const res    = await fetch(ENDPOINT_URL, {
+      method:"POST", redirect:"follow",
+      headers:{"Content-Type":"text/plain;charset=UTF-8"},
+      body: JSON.stringify({
+        action: "guardarFicha",
+        curso, modalidad: modal, idTrabajo: trabajo.id || trabajo.nombre,
+        titulo:   `${trabajo.tipo} — ${trabajo.nombre}`,
+        consigna: document.getElementById("fic-contenido-texto").value,
+        config
+      })
+    });
+    const data = await res.json();
+    if (data.status === "ok") {
+      const info = document.getElementById("fic-saved-info");
+      info.textContent = "✓ Ficha guardada en Drive";
+      info.style.color = "var(--green)";
+      info.style.display = "block";
+    }
+  } catch(e) { alert("Error guardando: " + e.message); }
+  finally { btn.textContent = "💾"; btn.disabled = false; }
+}
+
+// ── Cargar ficha guardada desde Drive ───────────────────────
+async function cargarFichaGuardada(silencioso = false) {
+  const trabajoRaw = document.getElementById("fic-trabajo").value;
+  if (!trabajoRaw) return;
+  const trabajo = JSON.parse(trabajoRaw);
+  const curso   = document.getElementById("not-curso").value;
+  const modal   = document.getElementById("not-modalidad").value;
+  const btn     = document.getElementById("btn-fic-cargar");
+  if (!silencioso) { btn.textContent = "⏳"; btn.disabled = true; }
+  try {
+    const idTrabajo = trabajo.id || trabajo.nombre;
+    const url  = `${ENDPOINT_URL}?action=getFicha&curso=${encodeURIComponent(curso)}&modalidad=${encodeURIComponent(modal)}&idTrabajo=${encodeURIComponent(idTrabajo)}`;
+    const res  = await fetch(url, {redirect:"follow"});
+    const data = await res.json();
+    if (data.status === "ok" && data.ficha) {
+      const f = data.ficha;
+      // Aplicar consigna
+      if (f.consigna) {
+        document.getElementById("fic-con-contenido").checked = true;
+        toggleFicContenido();
+        document.getElementById("fic-contenido-texto").value = f.consigna;
+      }
+      // Aplicar config
+      if (f.config) aplicarConfigFicha(f.config);
+      const info = document.getElementById("fic-saved-info");
+      const fecha = f.updatedAt ? new Date(f.updatedAt).toLocaleDateString("es-AR") : "";
+      info.textContent = `📂 Ficha cargada${fecha ? " · " + fecha : ""}`;
+      info.style.color = "var(--text2)";
+      info.style.display = "block";
+    } else if (!silencioso) {
+      alert("No hay ficha guardada para este trabajo.");
+    }
+  } catch(e) { if (!silencioso) alert("Error cargando: " + e.message); }
+  finally { if (!silencioso) { btn.textContent = "📂"; btn.disabled = false; } }
+}
+
+function leerConfigFicha() {
+  return {
+    fuente:       document.getElementById("fic-fuente")?.value || "Arial",
+    tamano:       document.getElementById("fic-tamano")?.value || "11",
+    orientacion:  document.getElementById("fic-orientacion")?.value || "portrait",
+    margenes:     document.getElementById("fic-margenes")?.value || "15mm 18mm",
+    conLineas:    document.getElementById("fic-con-lineas")?.checked || false,
+    cantLineas:   parseInt(document.getElementById("fic-cant-lineas")?.value || "20"),
+    conPie:       document.getElementById("fic-con-pie")?.checked || false,
+  };
+}
+
+function aplicarConfigFicha(cfg) {
+  if (cfg.fuente)      document.getElementById("fic-fuente").value      = cfg.fuente;
+  if (cfg.tamano)      document.getElementById("fic-tamano").value      = cfg.tamano;
+  if (cfg.orientacion) document.getElementById("fic-orientacion").value = cfg.orientacion;
+  if (cfg.margenes)    document.getElementById("fic-margenes").value    = cfg.margenes;
+  if (cfg.conLineas !== undefined) document.getElementById("fic-con-lineas").checked   = cfg.conLineas;
+  if (cfg.cantLineas)  document.getElementById("fic-cant-lineas").value = cfg.cantLineas;
+  if (cfg.conPie !== undefined)    document.getElementById("fic-con-pie").checked      = cfg.conPie;
+}
+
+// ── Previsualizar una sola ficha ─────────────────────────────
+async function previsualizarFicha() {
+  const trabajoRaw = document.getElementById("fic-trabajo").value;
+  if (!trabajoRaw) return;
+  const trabajo = JSON.parse(trabajoRaw);
+  const curso   = document.getElementById("not-curso").value;
+  const modal   = document.getElementById("not-modalidad").value;
+  const materia = document.getElementById("not-materia").value;
+  const cfg     = leerConfigFicha();
+  const texto   = document.getElementById("fic-con-contenido").checked
+    ? document.getElementById("fic-contenido-texto").value.trim() : "";
+
+  const cfg2 = app.config.find(c =>
+    c.curso == parseInt(curso) && normalizar(c.modalidad) === normalizar(modal) && normalizar(c.materia) === normalizar(materia));
+  const colorPpal = cfg2?.colorPpal || "#000984";
+  const colorSec  = cfg2?.colorSec  || "#1a29ff";
+  const docente   = cfg2?.docente   || "";
+
+  // Alumno de ejemplo (primero de la lista)
+  const urlEst = `${ENDPOINT_URL}?action=getEstudiantes&curso=${encodeURIComponent(curso)}&modalidad=${encodeURIComponent(modal)}`;
+  const resEst = await fetch(urlEst, {redirect:"follow"});
+  const dataEst = await resEst.json();
+  const alumno  = (dataEst.estudiantes||[])[0] || { nombre:"ALUMNO EJEMPLO", dni:"00000000", institucion:"Institución", localidad:"Localidad", logoUrl:"" };
+
+  const inst     = alumno.institucion || "";
+  const loc      = alumno.localidad   || "";
+  const logoUrl  = alumno.logoUrl     || "";
+  const logoB64  = logoUrl ? (imgCache[logoUrl] || await cargarImgBase64(logoUrl)) : "";
+  const idTrabajo = trabajo.id || trabajo.nombre.replace(/\s+/g,"").substring(0,8);
+  const qrUrl    = `https://quickchart.io/qr?size=150&text=${encodeURIComponent("KS:"+idTrabajo+":"+alumno.dni)}`;
+  const qrB64    = imgCache[qrUrl] || await cargarImgBase64(qrUrl);
+
+  const html = _buildFichaHTML([{ alumno, qrB64 }], trabajo, cfg, texto, colorPpal, colorSec, docente, inst, loc, logoB64, curso, modal, materia, true);
+  const win = window.open("","_blank","width=900,height=750");
+  if (!win) { alert("Habilitá las ventanas emergentes."); return; }
+  win.document.write(html);
+  win.document.close();
+}
+
+// ── Generar fichas para todos los alumnos ────────────────────
+async function generarFichas() {
+  const btn        = document.getElementById("btn-gen-fichas");
+  const trabajoRaw = document.getElementById("fic-trabajo").value;
+  if (!trabajoRaw) return;
+  const trabajo    = JSON.parse(trabajoRaw);
+  const cfg        = leerConfigFicha();
+  const texto      = document.getElementById("fic-con-contenido").checked
+    ? document.getElementById("fic-contenido-texto").value.trim() : "";
+  const curso      = document.getElementById("not-curso").value;
+  const modal      = document.getElementById("not-modalidad").value;
+  const materia    = document.getElementById("not-materia").value;
+
+  btn.textContent = "⏳ Generando..."; btn.disabled = true;
+  try {
+    const urlEst = `${ENDPOINT_URL}?action=getEstudiantes&curso=${encodeURIComponent(curso)}&modalidad=${encodeURIComponent(modal)}`;
+    const resEst = await fetch(urlEst, {redirect:"follow"});
+    const dataEst = await resEst.json();
+    const alumnos = (dataEst.estudiantes||[]).filter(a => a.activo !== false);
+    if (!alumnos.length) { alert("No hay alumnos activos."); return; }
+
+    const cfg2 = app.config.find(c =>
+      c.curso == parseInt(curso) && normalizar(c.modalidad) === normalizar(modal) && normalizar(c.materia) === normalizar(materia));
+    const colorPpal = cfg2?.colorPpal || "#000984";
+    const colorSec  = cfg2?.colorSec  || "#1a29ff";
+    const docente   = cfg2?.docente   || "";
+    const inst      = alumnos[0]?.institucion || "";
+    const loc       = alumnos[0]?.localidad   || "";
+    const logoUrl   = alumnos[0]?.logoUrl     || "";
+    const logoB64   = logoUrl ? (imgCache[logoUrl] || await cargarImgBase64(logoUrl)) : "";
+
+    const idTrabajo = trabajo.id || trabajo.nombre.replace(/\s+/g,"").substring(0,8);
+    const fichas    = [];
+    for (const al of alumnos) {
+      btn.textContent = `⏳ ${fichas.length+1}/${alumnos.length}`;
+      const qrUrl  = `https://quickchart.io/qr?size=150&text=${encodeURIComponent("KS:"+idTrabajo+":"+al.dni)}`;
+      const qrB64  = imgCache[qrUrl] || await cargarImgBase64(qrUrl);
+      fichas.push({ alumno: al, qrB64 });
+    }
+
+    const html = _buildFichaHTML(fichas, trabajo, cfg, texto, colorPpal, colorSec, docente, inst, loc, logoB64, curso, modal, materia, false);
+    const win = window.open("","_blank","width=1100,height=800");
+    if (!win) { alert("Habilitá las ventanas emergentes."); return; }
+    win.document.write(html);
+    win.document.close();
+  } catch(e) { alert("Error: " + e.message); }
+  finally { btn.textContent = "📄 Generar fichas"; btn.disabled = false; }
+}
+
+// ── Builder central de fichas ────────────────────────────────
+function _buildFichaHTML(fichas, trabajo, cfg, texto, colorPpal, colorSec, docente, inst, loc, logoB64, curso, modal, materia, preview) {
+  const QR_SIZE = "1.5cm";
+  const logoHtml = logoB64
+    ? `<img src="${logoB64}" style="width:55px;height:55px;object-fit:contain;border-radius:4px">`
+    : `<div style="width:55px;height:55px;background:#eee;border-radius:4px"></div>`;
+
+  const paginasHTML = fichas.map(({ alumno, qrB64 }) => {
+    const qrHtml = qrB64
+      ? `<img src="${qrB64}" style="width:${QR_SIZE};height:${QR_SIZE}">`
+      : "";
+
+    // Cuerpo: texto o líneas
+    let cuerpoHtml = "";
+    if (texto) {
+      cuerpoHtml = `<div style="margin-top:6mm;font-size:${cfg.tamano}pt;font-family:'${cfg.fuente}',sans-serif;line-height:1.7;color:#111;white-space:pre-wrap">${texto}</div>`;
+    } else if (cfg.conLineas) {
+      const lineas = Array(cfg.cantLineas).fill('<div style="border-bottom:0.5px solid #ccc;height:8mm"></div>').join("");
+      cuerpoHtml = `<div style="margin-top:6mm">${lineas}</div>`;
+    } else {
+      cuerpoHtml = `<div style="margin-top:6mm;border-top:0.3px solid #ddd;min-height:150mm"></div>`;
+    }
+
+    // Pie de página
+    const pieHtml = cfg.conPie ? `
+      <div style="margin-top:8mm;padding-top:4mm;border-top:0.5px solid #ccc;display:flex;justify-content:space-between;font-size:9pt;color:#555">
+        <span>Fecha de entrega: ___/___/______</span>
+        <span>Firma del docente: _______________________</span>
+      </div>` : "";
+
+    return `
+    <div class="ficha-page">
+      <div style="height:7px;background:${colorPpal};margin-bottom:5mm;border-radius:2px"></div>
+      <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:3mm">
+        ${logoHtml}
+        <div style="flex:1">
+          <div style="font-size:11pt;font-weight:700;color:${colorPpal}">${inst}</div>
+          <div style="font-size:9pt;color:#555">${loc}</div>
+          <div style="font-size:9pt;margin-top:2px"><strong>Curso:</strong> ${curso}° año &nbsp;|&nbsp; <strong>Modalidad:</strong> ${modal}</div>
+          <div style="font-size:9pt"><strong>Espacio curricular:</strong> ${materia}</div>
+          ${docente ? `<div style="font-size:9pt"><strong>Docente:</strong> ${docente}</div>` : ""}
+        </div>
+        <div style="text-align:center;flex-shrink:0">
+          ${qrHtml}
+          <div style="font-size:6.5pt;color:#999;margin-top:1mm">Escanear al entregar</div>
+        </div>
+      </div>
+      <div style="height:3px;background:${colorSec};margin-bottom:3mm;border-radius:1px"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 10px;background:${colorPpal}15;border-radius:6px;margin-bottom:2mm">
+        <div>
+          <div style="font-size:10pt;font-weight:700;color:${colorPpal}">${trabajo.tipo} — ${trabajo.nombre}</div>
+          <div style="font-size:8.5pt;color:#666">${trabajo.fecha||""}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:11pt;font-weight:700">${alumno.nombre}</div>
+          <div style="font-size:9pt;color:#555">DNI: ${alumno.dni}</div>
+        </div>
+      </div>
+      ${cuerpoHtml}
+      ${pieHtml}
+    </div>`;
+  }).join("");
+
+  const margin = cfg.margenes || "15mm 18mm";
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <style>
+    @page { size: A4 ${cfg.orientacion||"portrait"}; margin: ${margin}; }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:'${cfg.fuente||"Arial"}',sans-serif; background:#fff; color:#111;
+           -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    .ficha-page { page-break-after:always; min-height:${cfg.orientacion==="landscape"?"170mm":"250mm"}; }
+    .ficha-page:last-child { page-break-after:auto; }
+  </style></head><body>
+  ${paginasHTML}
+  ${preview ? "" : '<script>window.addEventListener("load",()=>setTimeout(()=>window.print(),600));<\/script>'}
+  </body></html>`;
+}
+
+// ════════════════════════════════════════════════════════════
+//  MÓDULO CROQUIS DEL AULA
+// ════════════════════════════════════════════════════════════
+const croquis = {
+  filas:    5,
+  cols:     5,
+  modo:     "grilla",
+  bancos:   {},        // "fila-col" → { dni, nombre, fotoUrl }
+  alumnos:  [],        // todos los alumnos del curso
+  presentes:new Set(), // DNIs presentes hoy
+  bancoSeleccionado: null,
+  modoAsistencia: false,
+};
+
+async function iniciarCroquis() {
+  const curso  = document.getElementById("est-curso").value;
+  const modal  = document.getElementById("est-modal").value;
+  if (!curso || !modal) { alert("Seleccioná curso y modalidad primero en la sub-tab Estudiantes."); return; }
+
+  croquis.filas = parseInt(document.getElementById("croquis-filas").value) || 5;
+  croquis.cols  = parseInt(document.getElementById("croquis-cols").value)  || 5;
+  croquis.modo  = document.getElementById("croquis-modo").value;
+
+  // Cargar alumnos
+  const url  = `${ENDPOINT_URL}?action=getEstudiantes&curso=${encodeURIComponent(curso)}&modalidad=${encodeURIComponent(modal)}`;
+  const res  = await fetch(url, {redirect:"follow"});
+  const data = await res.json();
+  croquis.alumnos = (data.estudiantes||[]).filter(a => a.activo !== false);
+
+  // Pre-cargar fotos
+  const urlsFoto = croquis.alumnos.map(a => a.fotoUrl).filter(u => u && !u.startsWith("data:"));
+  for (let i=0; i<urlsFoto.length; i+=4) {
+    await Promise.all(urlsFoto.slice(i,i+4).map(u => cargarImgBase64(u)));
+  }
+
+  // Cargar disposición guardada
+  const urlC = `${ENDPOINT_URL}?action=getCroquis&curso=${encodeURIComponent(curso)}&modalidad=${encodeURIComponent(modal)}`;
+  const resC = await fetch(urlC, {redirect:"follow"});
+  const dataC = await resC.json();
+  croquis.bancos = (dataC.status === "ok" && dataC.croquis) ? dataC.croquis : {};
+
+  // Cargar asistencia del día
+  const config0 = app.config.find(c => c.curso == parseInt(curso) && normalizar(c.modalidad) === normalizar(modal));
+  if (config0) {
+    const fecha = new Date().toISOString().slice(0,10);
+    const urlA = `${ENDPOINT_URL}?action=getPresentes&curso=${encodeURIComponent(curso)}&modalidad=${encodeURIComponent(modal)}&materia=${encodeURIComponent(config0.materia)}&fecha=${encodeURIComponent(fecha)}`;
+    try {
+      const resA = await fetch(urlA, {redirect:"follow"});
+      const dataA = await resA.json();
+      croquis.presentes = new Set((dataA.presentes||[]).map(p => p.dni));
+    } catch(e) {}
+  }
+
+  renderCroquis();
+  document.getElementById("croquis-area").style.display = "block";
+  document.getElementById("btn-croquis-guardar").style.display = "";
+  document.getElementById("btn-croquis-asistencia").style.display = "";
+}
+
+function renderCroquis() {
+  const grid = document.getElementById("croquis-grid");
+  const gap  = 6;
+  grid.style.cssText = `display:grid;grid-template-columns:repeat(${croquis.cols},1fr);gap:${gap}px`;
+
+  let html = "";
+  for (let f = 0; f < croquis.filas; f++) {
+    for (let c = 0; c < croquis.cols; c++) {
+      const key   = `${f}-${c}`;
+      const banco = croquis.bancos[key];
+      const pres  = banco && croquis.presentes.has(banco.dni);
+      const aus   = banco && !pres && croquis.modoAsistencia;
+      const cls   = banco
+        ? `banco ocupado${croquis.modoAsistencia ? (pres ? " presente" : " ausente") : ""}`
+        : "banco vacio";
+      const fotoSrc = banco
+        ? (imgCache[banco.fotoUrl] || banco.fotoUrl || "")
+        : "";
+      const fotoHtml = banco
+        ? (fotoSrc
+          ? `<img class="banco-foto" src="${fotoSrc}" onerror="this.style.display='none'">`
+          : `<div class="banco-foto-placeholder">👤</div>`)
+        : `<div style="font-size:20px;color:var(--border)">+</div>`;
+      const nombre = banco ? banco.nombre.split(" ").slice(-1)[0] : "";
+      html += `<div class="${cls}" data-key="${key}"
+        draggable="${banco?'true':'false'}"
+        ondragover="event.preventDefault();this.classList.add('drag-over')"
+        ondragleave="this.classList.remove('drag-over')"
+        ondrop="onDropBanco(event,'${key}')"
+        ondragstart="onDragBanco(event,'${key}')"
+        onclick="onClickBanco('${key}')">
+        ${fotoHtml}
+        ${banco ? `<div class="banco-nombre">${nombre}</div>` : ""}
+      </div>`;
+    }
+  }
+  grid.innerHTML = html;
+
+  // Pool de alumnos sin asignar
+  const asignados = new Set(Object.values(croquis.bancos).map(b => b.dni));
+  const sinAsignar = croquis.alumnos.filter(a => !asignados.has(a.dni));
+  const pool = document.getElementById("croquis-alumnos-pool");
+  const poolWrap = document.getElementById("croquis-sin-asignar");
+  if (sinAsignar.length) {
+    poolWrap.style.display = "block";
+    pool.innerHTML = sinAsignar.map(a => {
+      const src = imgCache[a.fotoUrl] || a.fotoUrl || "";
+      return `<div class="pool-alumno" draggable="true"
+        ondragstart="onDragPool(event,'${a.dni}')"
+        onclick="onClickPool('${a.dni}')">
+        ${src ? `<img src="${src}" onerror="this.style.display='none'">` : `<div style="width:38px;height:38px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:18px">👤</div>`}
+        <span>${a.nombre.split(" ").slice(-1)[0]}</span>
+      </div>`;
+    }).join("");
+  } else {
+    poolWrap.style.display = "none";
+  }
+
+  // Leyenda
+  document.getElementById("croquis-leyenda").style.display = croquis.modoAsistencia ? "flex" : "none";
+}
+
+// ── Drag & Drop ──────────────────────────────────────────────
+let _dragDni  = null;
+let _dragFrom = null; // "banco-{key}" o "pool"
+
+function onDragBanco(ev, key) {
+  _dragFrom = "banco-" + key;
+  _dragDni  = croquis.bancos[key]?.dni;
+  ev.dataTransfer.effectAllowed = "move";
+}
+function onDragPool(ev, dni) {
+  _dragFrom = "pool";
+  _dragDni  = dni;
+  ev.dataTransfer.effectAllowed = "move";
+}
+function onDropBanco(ev, keyDestino) {
+  ev.currentTarget.classList.remove("drag-over");
+  if (!_dragDni) return;
+  const alumno = croquis.alumnos.find(a => a.dni === _dragDni);
+  if (!alumno) return;
+
+  // Si viene de otro banco, liberar ese banco
+  if (_dragFrom && _dragFrom.startsWith("banco-")) {
+    const keyOrigen = _dragFrom.replace("banco-","");
+    if (keyOrigen !== keyDestino) delete croquis.bancos[keyOrigen];
+  }
+  croquis.bancos[keyDestino] = { dni: alumno.dni, nombre: alumno.nombre, fotoUrl: alumno.fotoUrl || "" };
+  _dragDni = null; _dragFrom = null;
+  renderCroquis();
+}
+
+// ── Clic en banco: abrir modal ───────────────────────────────
+function onClickBanco(key) {
+  croquis.bancoSeleccionado = key;
+  const tiene = !!croquis.bancos[key];
+  document.getElementById("btn-croquis-vaciar").style.display = tiene ? "" : "none";
+  document.getElementById("croquis-search").value = "";
+  filtrarAlumnosCroquis();
+  const modal = document.getElementById("croquis-modal");
+  modal.style.display = "flex";
+}
+function onClickPool(dni) {
+  // Clic en pool sin banco seleccionado → no hace nada
+}
+function cerrarModalCroquis() {
+  document.getElementById("croquis-modal").style.display = "none";
+  croquis.bancoSeleccionado = null;
+}
+function vaciarBanco() {
+  if (croquis.bancoSeleccionado) {
+    delete croquis.bancos[croquis.bancoSeleccionado];
+    cerrarModalCroquis();
+    renderCroquis();
+  }
+}
+function filtrarAlumnosCroquis() {
+  const q = document.getElementById("croquis-search").value.toLowerCase();
+  const lista = document.getElementById("croquis-lista-modal");
+  const filtrados = croquis.alumnos.filter(a => a.nombre.toLowerCase().includes(q));
+  lista.innerHTML = filtrados.map(a => {
+    const src = imgCache[a.fotoUrl] || a.fotoUrl || "";
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:8px;cursor:pointer"
+      onclick="asignarAlumnoBanco('${a.dni}')">
+      <div style="width:36px;height:36px;border-radius:50%;overflow:hidden;background:var(--surface2);flex-shrink:0">
+        ${src ? `<img src="${src}" style="width:100%;height:100%;object-fit:cover">` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:18px">👤</div>`}
+      </div>
+      <div>
+        <div style="font-size:13px;font-weight:600">${a.nombre}</div>
+        <div style="font-size:11px;color:var(--text2)">DNI: ${a.dni}</div>
+      </div>
+    </div>`;
+  }).join("");
+}
+function asignarAlumnoBanco(dni) {
+  if (!croquis.bancoSeleccionado) return;
+  const alumno = croquis.alumnos.find(a => a.dni === dni);
+  if (!alumno) return;
+  // Quitar de cualquier banco anterior
+  for (const k of Object.keys(croquis.bancos)) {
+    if (croquis.bancos[k].dni === dni) delete croquis.bancos[k];
+  }
+  croquis.bancos[croquis.bancoSeleccionado] = { dni: alumno.dni, nombre: alumno.nombre, fotoUrl: alumno.fotoUrl||"" };
+  cerrarModalCroquis();
+  renderCroquis();
+}
+
+// ── Guardar disposición ──────────────────────────────────────
+async function guardarCroquis() {
+  const curso = document.getElementById("est-curso").value;
+  const modal = document.getElementById("est-modal").value;
+  const btn   = document.getElementById("btn-croquis-guardar");
+  btn.textContent = "⏳"; btn.disabled = true;
+  try {
+    const res  = await fetch(ENDPOINT_URL, {
+      method:"POST", redirect:"follow",
+      headers:{"Content-Type":"text/plain;charset=UTF-8"},
+      body: JSON.stringify({ action:"guardarCroquis", curso, modalidad:modal, croquis: croquis.bancos })
+    });
+    const data = await res.json();
+    if (data.status === "ok") btn.textContent = "✓ Guardado";
+    else btn.textContent = "Error";
+    setTimeout(() => { btn.textContent = "💾 Guardar disposición"; btn.disabled = false; }, 2000);
+  } catch(e) { btn.textContent = "Error"; btn.disabled = false; }
+}
+
+// ── Toggle modo asistencia ───────────────────────────────────
+function toggleModoAsistencia() {
+  croquis.modoAsistencia = !croquis.modoAsistencia;
+  const btn = document.getElementById("btn-croquis-asistencia");
+  btn.textContent = croquis.modoAsistencia ? "👁 Ocultar asistencia" : "👁 Ver asistencia";
+  btn.style.background = croquis.modoAsistencia ? "var(--green)" : "";
+  btn.style.color      = croquis.modoAsistencia ? "#fff" : "";
+  renderCroquis();
 }
 
 function fmtFecha(iso) {
