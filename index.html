@@ -471,6 +471,7 @@ select:focus,input[type="date"]:focus{border-color:var(--accent)}
     <div class="sub-tab" onclick="switchSubTabNotas('cargar',this)">✏ Cargar</div>
     <div class="sub-tab" onclick="switchSubTabNotas('escanear',this)">📷 Escanear</div>
     <div class="sub-tab" onclick="switchSubTabNotas('rendimiento',this)">📊 Rendimiento</div>
+    <div class="sub-tab" onclick="switchSubTabNotas('fichas',this)">📄 Fichas</div>
   </div>
 
   <!-- ── Selector global de clase ─────────────────────────── -->
@@ -597,6 +598,46 @@ select:focus,input[type="date"]:focus{border-color:var(--accent)}
       </div>
     </div>
   </div>
+
+  <!-- ── Sub-tab: Fichas membretadas ──────────────────────── -->
+  <div class="sub-section" id="notas-fichas" style="padding:14px;gap:12px">
+    <div class="card">
+      <div class="card-label">Generar fichas de trabajo membretadas</div>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:12px">
+        Genera una hoja A4 por alumno con encabezado institucional, QR del trabajo y espacio para la actividad.
+        Al escanear el QR en <strong>Notas → Escanear</strong> se registra automáticamente.
+      </p>
+
+      <div class="form-group">
+        <label>Trabajo</label>
+        <select id="fic-trabajo" onchange="onFicTrabajoChange()">
+          <option value="">— Seleccioná un trabajo —</option>
+        </select>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:10px;margin:10px 0;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+          <input type="checkbox" id="fic-con-contenido" style="accent-color:var(--accent)">
+          Incluir texto de la actividad en la ficha
+        </label>
+      </div>
+
+      <div id="fic-contenido-wrap" style="display:none">
+        <div class="form-group">
+          <label>Texto de la actividad / consigna</label>
+          <textarea id="fic-contenido-texto" rows="6"
+            placeholder="Escribí aquí la consigna de la actividad..."
+            style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:10px 12px;outline:none;resize:vertical;font-family:inherit"></textarea>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" id="btn-gen-fichas" disabled onclick="generarFichas()">
+        📄 Generar fichas
+      </button>
+    </div>
+
+    <div id="fic-info" style="display:none;font-size:12px;color:var(--text2);padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:8px"></div>
+  </div>
 </section>
 
 
@@ -613,17 +654,34 @@ select:focus,input[type="date"]:focus{border-color:var(--accent)}
   </div>
 
   <div class="sub-tabs" id="cursos-subtabs">
-    <div class="sub-tab active" onclick="switchSubTabCursos('cursos',this)">📋 Cursos</div>
+    <div class="sub-tab active" onclick="switchSubTabCursos('cursos',this)">✏️ Crear/Editar</div>
     <div class="sub-tab" onclick="switchSubTabCursos('estudiantes',this)">👥 Estudiantes</div>
   </div>
 
   <!-- ── Sub-tab: Cursos (ABM) ──────────────────────────────── -->
   <div class="sub-section active" id="cursos-cursos" style="padding:14px;gap:12px">
 
-    <!-- Crear nuevo curso -->
-    <div class="card">
-      <div class="card-label">Nuevo curso / espacio curricular</div>
+    <!-- Crear / Editar curso -->
+    <div class="card" id="card-form-curso">
+      <div id="cur-form-label" class="card-label">Nuevo curso / espacio curricular</div>
+      <input type="hidden" id="cur-edit-fila" value="">
+
+      <!-- Fila 1: Institución | Localidad -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <div class="form-group">
+          <label>Institución</label>
+          <input type="text" id="cur-nuevo-inst" placeholder="Nombre de la institución"
+            style="background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:9px 12px;width:100%;outline:none">
+        </div>
+        <div class="form-group">
+          <label>Localidad</label>
+          <input type="text" id="cur-nuevo-loc" placeholder="Ciudad / Localidad"
+            style="background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:9px 12px;width:100%;outline:none">
+        </div>
+      </div>
+
+      <!-- Fila 2: Año | Período | Modalidad -->
+      <div style="display:grid;grid-template-columns:80px 140px 1fr;gap:8px;margin-bottom:8px">
         <div class="form-group">
           <label>Año</label>
           <select id="cur-nuevo-anio">
@@ -640,33 +698,45 @@ select:focus,input[type="date"]:focus{border-color:var(--accent)}
             <option value="anual">Anual</option>
           </select>
         </div>
+        <div class="form-group">
+          <label>Modalidad</label>
+          <input type="text" id="cur-nuevo-modal" placeholder="Ej: BACHILLER EN CS. SOCIALES"
+            style="background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:9px 12px;width:100%;outline:none;text-transform:uppercase">
+        </div>
       </div>
-      <div class="form-group">
-        <label>Modalidad</label>
-        <input type="text" id="cur-nuevo-modal" placeholder="Ej: BACHILLER EN CIENCIAS SOCIALES"
-          style="background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;padding:10px 12px;width:100%;outline:none;text-transform:uppercase">
-      </div>
-      <div class="form-group">
-        <label>Espacio curricular / Materia</label>
-        <input type="text" id="cur-nuevo-materia" placeholder="Ej: Matemática"
-          style="background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;padding:10px 12px;width:100%;outline:none">
-      </div>
+
+      <!-- Fila 3: Materia | Docente -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
         <div class="form-group">
+          <label>Espacio curricular / Materia</label>
+          <input type="text" id="cur-nuevo-materia" placeholder="Ej: Matemática"
+            style="background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:9px 12px;width:100%;outline:none">
+        </div>
+        <div class="form-group">
+          <label>Docente</label>
+          <input type="text" id="cur-nuevo-docente" placeholder="Apellido y Nombre"
+            style="background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:9px 12px;width:100%;outline:none">
+        </div>
+      </div>
+
+      <!-- Fila 4: Color principal | Color secundario -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+        <div class="form-group">
           <label>Color principal</label>
-          <input type="color" id="cur-nuevo-color1" value="#000984" style="width:100%;height:42px;border-radius:8px;border:1px solid var(--border);background:var(--bg);cursor:pointer">
+          <input type="color" id="cur-nuevo-color1" value="#000984"
+            style="width:100%;height:42px;border-radius:8px;border:1px solid var(--border);background:var(--bg);cursor:pointer">
         </div>
         <div class="form-group">
           <label>Color secundario</label>
-          <input type="color" id="cur-nuevo-color2" value="#1a29ff" style="width:100%;height:42px;border-radius:8px;border:1px solid var(--border);background:var(--bg);cursor:pointer">
+          <input type="color" id="cur-nuevo-color2" value="#1a29ff"
+            style="width:100%;height:42px;border-radius:8px;border:1px solid var(--border);background:var(--bg);cursor:pointer">
         </div>
       </div>
-      <div class="form-group">
-        <label>Docente</label>
-        <input type="text" id="cur-nuevo-docente" placeholder="Apellido y Nombre del docente"
-          style="background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;padding:10px 12px;width:100%;outline:none">
+
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" id="btn-cur-guardar" onclick="guardarCurso()">➕ Crear curso</button>
+        <button class="btn btn-secondary" id="btn-cur-cancelar" style="display:none" onclick="cancelarEditCurso()">Cancelar</button>
       </div>
-      <button class="btn btn-primary" onclick="crearCurso()">➕ Crear curso</button>
     </div>
 
     <!-- Lista de cursos -->
@@ -2409,6 +2479,175 @@ function switchSubTabNotas(tab, btn) {
   document.querySelectorAll("#notas-subtabs .sub-tab").forEach(t => t.classList.remove("active"));
   document.getElementById("notas-" + tab).classList.add("active");
   if (btn) btn.classList.add("active");
+  if (tab === "fichas") cargarTrabajosParaFichas();
+}
+
+// ── Toggle checkbox "incluir contenido" ──────────────────────
+document.addEventListener("DOMContentLoaded", () => {
+  const chk = document.getElementById("fic-con-contenido");
+  if (chk) chk.addEventListener("change", () => {
+    document.getElementById("fic-contenido-wrap").style.display = chk.checked ? "block" : "none";
+  });
+});
+
+// ── Cargar trabajos en el selector de fichas ─────────────────
+async function cargarTrabajosParaFichas() {
+  const curso    = document.getElementById("not-curso").value;
+  const modalidad= document.getElementById("not-modalidad").value;
+  const materia  = document.getElementById("not-materia").value;
+  const periodo  = document.getElementById("not-periodo").value;
+  const sel      = document.getElementById("fic-trabajo");
+  const btn      = document.getElementById("btn-gen-fichas");
+  sel.innerHTML = '<option value="">— Seleccioná un trabajo —</option>';
+  btn.disabled  = true;
+  if (!curso || !modalidad || !materia || !periodo) {
+    document.getElementById("fic-info").style.display = "block";
+    document.getElementById("fic-info").textContent = "⚠ Seleccioná curso, materia y período en los filtros primero.";
+    return;
+  }
+  document.getElementById("fic-info").style.display = "none";
+  try {
+    const url  = `${ENDPOINT_URL}?action=getTrabajos&curso=${encodeURIComponent(curso)}&modalidad=${encodeURIComponent(modalidad)}&materia=${encodeURIComponent(materia)}&periodo=${encodeURIComponent(periodo)}`;
+    const res  = await fetch(url, {redirect:"follow"});
+    const data = await res.json();
+    (data.trabajos || []).forEach(t => {
+      const o = document.createElement("option");
+      o.value = JSON.stringify(t);
+      o.textContent = `${t.tipo} — ${t.nombre}`;
+      sel.appendChild(o);
+    });
+  } catch(e) { console.warn(e); }
+}
+
+function onFicTrabajoChange() {
+  document.getElementById("btn-gen-fichas").disabled = !document.getElementById("fic-trabajo").value;
+}
+
+// ── Generar fichas membretadas ────────────────────────────────
+async function generarFichas() {
+  const btn      = document.getElementById("btn-gen-fichas");
+  const trabajoRaw = document.getElementById("fic-trabajo").value;
+  if (!trabajoRaw) return;
+  const trabajo  = JSON.parse(trabajoRaw);
+  const conTexto = document.getElementById("fic-con-contenido").checked;
+  const texto    = conTexto ? document.getElementById("fic-contenido-texto").value.trim() : "";
+  const curso    = document.getElementById("not-curso").value;
+  const modal    = document.getElementById("not-modalidad").value;
+  const materia  = document.getElementById("not-materia").value;
+
+  btn.textContent = "⏳ Generando..."; btn.disabled = true;
+
+  try {
+    // Obtener alumnos del curso
+    const urlEst = `${ENDPOINT_URL}?action=getEstudiantes&curso=${encodeURIComponent(curso)}&modalidad=${encodeURIComponent(modal)}`;
+    const resEst = await fetch(urlEst, {redirect:"follow"});
+    const dataEst= await resEst.json();
+    const alumnos = (dataEst.estudiantes || []).filter(a => a.activo !== false);
+
+    if (!alumnos.length) { alert("No hay alumnos activos en este curso."); return; }
+
+    // Obtener datos institucionales
+    const cfg = app.config.find(c =>
+      c.curso == parseInt(curso) &&
+      normalizar(c.modalidad) === normalizar(modal) &&
+      normalizar(c.materia)   === normalizar(materia));
+    const colorPpal = cfg?.colorPpal || "#000984";
+    const colorSec  = cfg?.colorSec  || "#1a29ff";
+    const docente   = cfg?.docente   || "";
+
+    // Tomar logo e institución del primer alumno
+    const inst   = alumnos[0]?.institucion || "";
+    const loc    = alumnos[0]?.localidad   || "";
+    const logoUrl= alumnos[0]?.logoUrl     || "";
+    let   logoB64= "";
+    if (logoUrl) logoB64 = imgCache[logoUrl] || await cargarImgBase64(logoUrl);
+
+    // Generar QR por alumno (formato KS:{idTrabajo}:{dni})
+    const idTrabajo = trabajo.id || trabajo.nombre.replace(/\s+/g,"").substring(0,8);
+    const fichas    = [];
+    for (const al of alumnos) {
+      const qrData = `KS:${idTrabajo}:${al.dni}`;
+      const qrUrl  = `https://quickchart.io/qr?size=200&text=${encodeURIComponent(qrData)}`;
+      const qrB64  = imgCache[qrUrl] || await cargarImgBase64(qrUrl);
+      fichas.push({ alumno: al, qrB64, qrData });
+    }
+
+    // Construir HTML de impresión
+    const paginasHTML = fichas.map(({ alumno, qrB64 }) => {
+      const logoHtml = logoB64
+        ? `<img src="${logoB64}" style="width:55px;height:55px;object-fit:contain;border-radius:4px">`
+        : `<div style="width:55px;height:55px;background:#eee;border-radius:4px"></div>`;
+      const qrHtml = qrB64
+        ? `<img src="${qrB64}" style="width:55px;height:55px">`
+        : "";
+      const textoHtml = texto
+        ? `<div style="margin-top:8mm;font-size:11pt;line-height:1.6;white-space:pre-wrap;color:#111">${texto}</div>`
+        : "";
+
+      return `
+      <div class="ficha-page">
+        <!-- Barra superior de color -->
+        <div style="height:8px;background:${colorPpal};margin-bottom:6mm;border-radius:2px"></div>
+
+        <!-- Encabezado: logo | datos | QR -->
+        <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:4mm">
+          ${logoHtml}
+          <div style="flex:1">
+            <div style="font-size:11pt;font-weight:700;color:${colorPpal}">${inst}</div>
+            <div style="font-size:9pt;color:#555">${loc}</div>
+            <div style="font-size:9pt;margin-top:3px"><strong>Curso:</strong> ${curso}° año &nbsp;|&nbsp; <strong>Modalidad:</strong> ${modal}</div>
+            <div style="font-size:9pt"><strong>Espacio curricular:</strong> ${materia}</div>
+            ${docente ? `<div style="font-size:9pt"><strong>Docente:</strong> ${docente}</div>` : ""}
+          </div>
+          <div style="text-align:center;flex-shrink:0">
+            ${qrHtml}
+            <div style="font-size:7pt;color:#888;margin-top:2px">Escanear al entregar</div>
+          </div>
+        </div>
+
+        <!-- Barra secundaria -->
+        <div style="height:3px;background:${colorSec};margin-bottom:4mm;border-radius:1px"></div>
+
+        <!-- Datos del trabajo + alumno -->
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:${colorPpal}18;border-radius:6px;margin-bottom:4mm">
+          <div>
+            <div style="font-size:10pt;font-weight:700;color:${colorPpal}">${trabajo.tipo} — ${trabajo.nombre}</div>
+            <div style="font-size:9pt;color:#555">${trabajo.fecha || ""}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:11pt;font-weight:700">${alumno.nombre}</div>
+            <div style="font-size:9pt;color:#555">DNI: ${alumno.dni}</div>
+          </div>
+        </div>
+
+        <!-- Línea de separación y cuerpo -->
+        ${textoHtml}
+        ${!texto ? '<div style="margin-top:8mm;border-top:0.5px solid #ccc;height:180mm"></div>' : ""}
+      </div>`;
+    }).join("");
+
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <style>
+      @page { size: A4 portrait; margin: 15mm 18mm; }
+      * { box-sizing:border-box; margin:0; padding:0; }
+      body { font-family:Arial,sans-serif; background:#fff; color:#111;
+             -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+      .ficha-page { page-break-after:always; min-height:267mm; }
+      .ficha-page:last-child { page-break-after:auto; }
+    </style></head><body>
+    ${paginasHTML}
+    <script>window.addEventListener("load",()=>setTimeout(()=>window.print(),500));<\/script>
+    </body></html>`;
+
+    const win = window.open("","_blank","width=1100,height=800");
+    if (!win) { alert("Habilitá las ventanas emergentes para este sitio."); return; }
+    win.document.write(html);
+    win.document.close();
+  } catch(e) {
+    alert("Error generando fichas: " + e.message);
+  } finally {
+    btn.textContent = "📄 Generar fichas"; btn.disabled = false;
+  }
 }
 
 // ── Cargar trabajos del período ──────────────────────────────
@@ -2608,15 +2847,43 @@ function detenerEscaneoEntrega() {
   }
 }
 
-async function onScanEntrega(dni) {
+async function onScanEntrega(scanned) {
   if (notasApp.processingEntr) return;
   notasApp.processingEntr = true;
-  setNotSemaforo("idle","Verificando...",`DNI: ${dni}`);
   notCooldown();
+
+  let dni, idTrabajo, autoDetectado = false;
+
+  // Detectar si es QR de ficha (formato KS:{idTrabajo}:{dni})
+  if (scanned.startsWith("KS:")) {
+    const partes = scanned.split(":");
+    if (partes.length >= 3) {
+      idTrabajo    = partes[1];
+      dni          = partes[2];
+      autoDetectado = true;
+      // Auto-seleccionar el trabajo en el selector si coincide
+      const sel = document.getElementById("not-sel-escaneo");
+      for (const opt of sel.options) {
+        if (opt.value === idTrabajo) { sel.value = idTrabajo; break; }
+      }
+    }
+  } else {
+    // QR clásico: solo DNI
+    dni       = scanned;
+    idTrabajo = document.getElementById("not-sel-escaneo").value;
+  }
+
+  if (!idTrabajo) {
+    setNotSemaforo("err", "Sin trabajo seleccionado", "Seleccioná un trabajo o usá QR de ficha");
+    setTimeout(() => { notasApp.processingEntr = false; }, 2500);
+    return;
+  }
+
+  setNotSemaforo("idle","Verificando...", autoDetectado ? `QR de ficha — DNI: ${dni}` : `DNI: ${dni}`);
+
   const curso     = document.getElementById("not-curso").value;
   const modalidad = document.getElementById("not-modalidad").value;
   const materia   = document.getElementById("not-materia").value;
-  const idTrabajo = document.getElementById("not-sel-escaneo").value;
   const fecha     = new Date().toISOString().slice(0,10);
   try {
     const res  = await fetch(ENDPOINT_URL, {
@@ -3107,21 +3374,27 @@ function renderCursos() {
     return;
   }
   lista.innerHTML = cursosApp.cursos.map(c => `
-    <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;margin-bottom:6px">
-      <div style="width:10px;height:10px;border-radius:50%;background:${c.colorPpal||'var(--accent)'};flex-shrink:0"></div>
+    <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;margin-bottom:6px;opacity:${c.activa?1:0.5}">
+      <div style="width:12px;height:36px;border-radius:3px;background:${c.colorPpal||'var(--accent)'};flex-shrink:0"></div>
       <div style="flex:1;min-width:0">
         <div style="font-size:13px;font-weight:600">${c.curso}° — ${c.modalidad}</div>
         <div style="font-size:11px;color:var(--text2)">${c.materia}${c.docente?' · '+c.docente:''}</div>
+        <div style="font-size:10px;color:var(--text2);margin-top:2px">${c.tipoPeriodo||'trimestral'}</div>
       </div>
-      <label style="display:flex;align-items:center;gap:5px;cursor:pointer;flex-shrink:0">
-        <input type="checkbox" ${c.activa?'checked':''} style="accent-color:var(--accent)"
-          onchange="toggleCurso(${c.fila},this.checked)">
-        <span style="font-size:11px;color:var(--text2)">${c.activa?'Activo':'Inactivo'}</span>
-      </label>
+      <div style="display:flex;gap:4px;flex-shrink:0;align-items:center">
+        <button class="btn btn-sm" style="font-size:11px;padding:4px 8px;background:var(--surface2)" title="Editar"
+          onclick="editarCurso(${c.fila})">✏️</button>
+        <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
+          <input type="checkbox" ${c.activa?'checked':''} style="accent-color:var(--accent)"
+            onchange="toggleCurso(${c.fila},this.checked)">
+          <span style="font-size:10px;color:var(--text2)">${c.activa?'Activo':'Inactivo'}</span>
+        </label>
+      </div>
     </div>`).join("");
 }
 
-async function crearCurso() {
+async function guardarCurso() {
+  const fila   = document.getElementById("cur-edit-fila").value;
   const anio   = document.getElementById("cur-nuevo-anio").value;
   const modal  = document.getElementById("cur-nuevo-modal").value.trim().toUpperCase();
   const mat    = document.getElementById("cur-nuevo-materia").value.trim();
@@ -3129,24 +3402,56 @@ async function crearCurso() {
   const color2 = document.getElementById("cur-nuevo-color2").value;
   const tipo   = document.getElementById("cur-nuevo-tipo").value;
   const doc    = document.getElementById("cur-nuevo-docente").value.trim();
+  const inst   = document.getElementById("cur-nuevo-inst").value.trim();
+  const loc    = document.getElementById("cur-nuevo-loc").value.trim();
   if (!modal || !mat) { alert("Completá modalidad y materia"); return; }
+  const isEdit = fila && fila !== "";
   try {
-    const res  = await fetch(ENDPOINT_URL, {
+    const res = await fetch(ENDPOINT_URL, {
       method:"POST", redirect:"follow",
       headers:{"Content-Type":"text/plain;charset=UTF-8"},
-      body: JSON.stringify({ action:"crearCurso", curso:anio, modalidad:modal,
-        materia:mat, colorPpal:color1, colorSec:color2, tipoPeriodo:tipo, docente:doc })
+      body: JSON.stringify({ action: isEdit ? "editarCurso" : "crearCurso",
+        fila: isEdit ? parseInt(fila) : undefined,
+        curso:anio, modalidad:modal, materia:mat,
+        colorPpal:color1, colorSec:color2, tipoPeriodo:tipo,
+        docente:doc, institucion:inst, localidad:loc })
     });
     const data = await res.json();
     if (data.status === "ok") {
-      document.getElementById("cur-nuevo-modal").value = "";
-      document.getElementById("cur-nuevo-materia").value = "";
-      document.getElementById("cur-nuevo-docente").value = "";
+      cancelarEditCurso();
       await cargarCursos();
-      // Refrescar config global
       sessionStorage.removeItem("ks_config");
     } else { alert((data.status==="duplicado"?"Ya existe: ":"Error: ")+data.message); }
   } catch(e) { alert("Error: "+e.message); }
+}
+
+function editarCurso(fila) {
+  const c = cursosApp.cursos.find(x => x.fila === fila);
+  if (!c) return;
+  document.getElementById("cur-edit-fila").value       = fila;
+  document.getElementById("cur-nuevo-anio").value      = c.curso.toString().replace(/\D/g,"") || "1";
+  document.getElementById("cur-nuevo-modal").value     = c.modalidad;
+  document.getElementById("cur-nuevo-materia").value   = c.materia;
+  document.getElementById("cur-nuevo-color1").value    = c.colorPpal || "#000984";
+  document.getElementById("cur-nuevo-color2").value    = c.colorSec  || "#1a29ff";
+  document.getElementById("cur-nuevo-tipo").value      = c.tipoPeriodo || "trimestral";
+  document.getElementById("cur-nuevo-docente").value   = c.docente || "";
+  document.getElementById("cur-form-label").textContent = "Editando: " + c.curso + "° " + c.modalidad;
+  document.getElementById("btn-cur-guardar").textContent = "💾 Guardar cambios";
+  document.getElementById("btn-cur-cancelar").style.display = "";
+  document.getElementById("card-form-curso").scrollIntoView({behavior:"smooth"});
+}
+
+function cancelarEditCurso() {
+  document.getElementById("cur-edit-fila").value       = "";
+  document.getElementById("cur-nuevo-modal").value     = "";
+  document.getElementById("cur-nuevo-materia").value   = "";
+  document.getElementById("cur-nuevo-docente").value   = "";
+  document.getElementById("cur-nuevo-inst").value      = "";
+  document.getElementById("cur-nuevo-loc").value       = "";
+  document.getElementById("cur-form-label").textContent = "Nuevo curso / espacio curricular";
+  document.getElementById("btn-cur-guardar").textContent = "➕ Crear curso";
+  document.getElementById("btn-cur-cancelar").style.display = "none";
 }
 
 async function toggleCurso(fila, activa) {
@@ -3157,6 +3462,7 @@ async function toggleCurso(fila, activa) {
       body: JSON.stringify({ action:"toggleCurso", fila, activa })
     });
     sessionStorage.removeItem("ks_config");
+    await cargarCursos();
   } catch(e) { console.warn(e); }
 }
 
@@ -3235,19 +3541,35 @@ async function cargarListaEstudiantes() {
     const alumnos = data.estudiantes || [];
     document.getElementById("est-count").textContent = `${alumnos.length} alumnos`;
     if (!alumnos.length) { lista.innerHTML = '<div class="empty-state">Sin alumnos registrados</div>'; return; }
-    lista.innerHTML = alumnos.map((a,i) => `
-      <div style="display:flex;align-items:center;gap:10px;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:8px;margin-bottom:5px">
-        <div style="width:36px;height:36px;border-radius:50%;overflow:hidden;flex-shrink:0;background:var(--surface2)">
-          ${a.fotoUrl
-            ? `<img src="${a.fotoUrl}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">`
-            : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:16px">👤</div>`}
+    lista.innerHTML = alumnos.map((a,i) => {
+      const nom    = a.nombre.replace(/\\/g,"\\\\").replace(/'/g,"\\'");
+      const activo = a.activo !== false;
+      const fotoHtml = a.fotoUrl
+        ? `<img src="${a.fotoUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:50%"
+             onerror="this.parentElement.innerHTML='<div style=\\'width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:18px\\'>👤</div>'">`
+        : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:18px">👤</div>`;
+      return `
+      <div style="display:flex;align-items:center;gap:10px;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:8px;margin-bottom:5px;opacity:${activo?1:0.5}">
+        <div style="width:40px;height:40px;border-radius:50%;overflow:hidden;flex-shrink:0;background:var(--surface2);border:2px solid var(--border)">
+          ${fotoHtml}
         </div>
         <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:600">${a.nombre}</div>
+          <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${a.nombre}</div>
           <div style="font-size:11px;color:var(--text2)">DNI: ${a.dni}</div>
         </div>
-        ${!a.fotoUrl ? `<button class="btn btn-sm" style="font-size:11px;padding:4px 8px;background:var(--surface2)" onclick="agregarFotoAlumno('${a.dni}','${a.nombre.replace(/'/g,"\\'")}')">📷 Foto</button>` : ''}
-      </div>`).join("");
+        <div style="display:flex;gap:4px;flex-shrink:0">
+          <button class="btn btn-sm" style="font-size:11px;padding:4px 8px;background:var(--surface2)" title="Editar datos"
+            onclick="editarEstudiante('${a.dni}','${nom}',${a.fila||0})">✏️</button>
+          <button class="btn btn-sm" style="font-size:11px;padding:4px 8px;background:var(--surface2)" title="Cambiar foto"
+            onclick="agregarFotoAlumno('${a.dni}','${nom}')">📷</button>
+          <button class="btn btn-sm" style="font-size:11px;padding:4px 8px;background:${activo?'#7c3aed':'var(--surface2)'};color:${activo?'#fff':'var(--text2)'}"
+            title="${activo?'Desactivar':'Activar'} alumno"
+            onclick="toggleEstudiante('${a.dni}',${a.fila||0},${!activo})">
+            ${activo?'✓':'✗'}
+          </button>
+        </div>
+      </div>`;
+    }).join("");
   } catch(e) {
     lista.innerHTML = `<div class="empty-state" style="color:var(--red)">Error: ${e.message}</div>`;
   }
@@ -3436,6 +3758,37 @@ async function confirmarImportacion() {
 }
 
 // ── Agregar foto a alumno existente ──────────────────────────
+// ── Editar datos de estudiante ───────────────────────────────
+function editarEstudiante(dni, nombre, fila) {
+  // Pre-cargar el formulario individual con los datos
+  abrirFormEstudiante();
+  document.getElementById("est-nombre").value = nombre;
+  document.getElementById("est-dni").value    = dni;
+  document.getElementById("est-dni").readOnly = true; // DNI no se modifica
+  document.getElementById("est-dni").style.opacity = "0.6";
+  const btn = document.querySelector("#form-est-individual .btn-primary");
+  if (btn) {
+    btn.textContent = "💾 Guardar cambios";
+    btn.setAttribute("data-edit-fila", fila);
+    btn.onclick = () => guardarEstudiante(fila);
+  }
+  document.getElementById("form-est-individual").scrollIntoView({behavior:"smooth"});
+}
+
+// ── Toggle estado activo/inactivo de estudiante ──────────────
+async function toggleEstudiante(dni, fila, nuevoEstado) {
+  try {
+    const res  = await fetch(ENDPOINT_URL, {
+      method:"POST", redirect:"follow",
+      headers:{"Content-Type":"text/plain;charset=UTF-8"},
+      body: JSON.stringify({ action:"toggleEstudiante", dni, fila, activo: nuevoEstado })
+    });
+    const data = await res.json();
+    if (data.status === "ok") await cargarListaEstudiantes();
+    else alert("Error: " + data.message);
+  } catch(e) { alert("Error: " + e.message); }
+}
+
 async function agregarFotoAlumno(dni, nombre) {
   const input = document.createElement("input");
   input.type  = "file"; input.accept = "image/*";
