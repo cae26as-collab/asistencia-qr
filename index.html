@@ -4983,12 +4983,33 @@ function redimensionarCroquis() {
   const nuevasFilas = parseInt(document.getElementById("croquis-filas")?.value || 5);
   const nuevasCols  = parseInt(document.getElementById("croquis-cols")?.value  || 5);
   if (nuevasFilas < 1 || nuevasCols < 1) return;
-  // Eliminar bancos fuera del nuevo tamaño
+
+  const filasActuales = croquis.filas;
+  const colsActuales  = croquis.cols;
+
+  // Remapear posiciones: los alumnos están cerca del pizarrón (filas/cols altas).
+  // Al reducir, conservar las filas/cols del FONDO (las más altas en índice = 
+  // las más cercanas al pizarrón visualmente) y descartar las vacías del principio.
+  const deltaFilas = filasActuales - nuevasFilas; // filas que se eliminan (del tope)
+  const deltaCols  = colsActuales  - nuevasCols;  // cols que se eliminan (de la izq)
+
   const bancosNuevos = {};
   Object.entries(croquis.bancos).forEach(([key, val]) => {
     const [f, c] = key.split("-").map(Number);
-    if (f < nuevasFilas && c < nuevasCols) bancosNuevos[key] = val;
+    // Al reducir filas: se eliminan las primeras (índice bajo = lejos del pizarrón)
+    // Al reducir cols: se eliminan las primeras (índice bajo = izquierda)
+    const nuevaF = nuevasFilas > filasActuales
+      ? f  // al ampliar: mantener igual
+      : f - deltaFilas; // al reducir: desplazar hacia abajo
+    const nuevaC = nuevasCols > colsActuales
+      ? c
+      : c - deltaCols;
+    // Solo guardar si cabe en la nueva grilla
+    if (nuevaF >= 0 && nuevaF < nuevasFilas && nuevaC >= 0 && nuevaC < nuevasCols) {
+      bancosNuevos[`${nuevaF}-${nuevaC}`] = val;
+    }
   });
+
   croquis.filas  = nuevasFilas;
   croquis.cols   = nuevasCols;
   croquis.bancos = bancosNuevos;
