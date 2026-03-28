@@ -3897,14 +3897,13 @@ function abrirFormEstudiante() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  // Inicializar opciones por defecto del editor de quiz
-  const qzTipo = document.getElementById("qz-nueva-tipo");
-  if (qzTipo) {
-    qzTipo.addEventListener("change", () => {
+  // Delegación de eventos para el selector de tipo de quiz
+  document.addEventListener("change", e => {
+    if (e.target && e.target.id === "qz-nueva-tipo") {
       document.getElementById("qz-opciones-lista").innerHTML = "";
       agregarOpcion(); agregarOpcion();
-    });
-  }
+    }
+  });
   const fotoInput = document.getElementById("est-foto");
   if (fotoInput) {
     fotoInput.addEventListener("change", function() {
@@ -5365,8 +5364,10 @@ async function abrirQuizEditor(idTrabajo, nombreTrabajo) {
   document.getElementById("quiz-modal").style.display = "block";
   document.body.style.overflow = "hidden";
 
-  // Verificar si ya existe un quiz
-  _setQuizEstado("cargando");
+  // Verificar si ya existe un quiz (en el siguiente frame para que el DOM se actualice)
+  requestAnimationFrame(() => {
+    _setQuizEstado("cargando");
+  });
   try {
     const url  = `${ENDPOINT_URL}?action=getQuiz&curso=${encodeURIComponent(curso)}&modalidad=${encodeURIComponent(modal)}&idTrabajo=${encodeURIComponent(idTrabajo)}`;
     const res  = await fetch(url, {redirect:"follow"});
@@ -5729,7 +5730,7 @@ async function confirmarImportarNotas() {
     </div>
 
     <!-- Editor de preguntas -->
-    <div id="quiz-editor" style="display:none">
+    <div id="quiz-estado-editor" style="display:none">
       <div id="quiz-preguntas-lista" style="margin-bottom:12px"></div>
 
       <!-- Agregar pregunta -->
@@ -5737,7 +5738,7 @@ async function confirmarImportarNotas() {
         <div class="card-label" style="margin-bottom:10px">Nueva pregunta</div>
         <div class="form-group">
           <label>Tipo</label>
-          <select id="qz-nueva-tipo">
+          <select id="qz-nueva-tipo" onchange="document.getElementById('qz-opciones-lista').innerHTML='';agregarOpcion();agregarOpcion()">
             <option value="multiple">Opción múltiple (una correcta)</option>
             <option value="casillas">Casillas (varias correctas)</option>
           </select>
