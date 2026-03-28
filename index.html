@@ -5597,6 +5597,35 @@ async function crearQuizDesdeEditor() {
 }
 
 // ── Importar resultados ──────────────────────────────────────
+async function confirmarEliminarQuiz() {
+  if (!confirm(`¿Eliminár el quiz "${quizApp.idTrabajo}"?\n\nEsto eliminará el formulario de Google Forms y los metadatos del sistema.\nLas notas ya importadas NO se borran.`)) return;
+
+  const curso = document.getElementById("not-curso").value;
+  const modal = document.getElementById("not-modalidad").value;
+
+  try {
+    const res  = await fetch(ENDPOINT_URL, {
+      method:"POST", redirect:"follow",
+      headers:{"Content-Type":"text/plain;charset=UTF-8"},
+      body: JSON.stringify({
+        action: "eliminarQuiz",
+        curso, modalidad: modal,
+        idTrabajo: quizApp.idTrabajo
+      })
+    });
+    const data = await res.json();
+    if (data.status === "ok") {
+      alert(data.message);
+      quizApp.quizMeta = null;
+      cerrarQuizModal();
+    } else {
+      alert("Error: " + data.message);
+    }
+  } catch(e) {
+    alert("Error: " + e.message);
+  }
+}
+
 async function mostrarImportarResultados() {
   _setQuizEstado("importar");
   const lista = document.getElementById("quiz-resultados-lista");
@@ -5709,6 +5738,7 @@ async function confirmarImportarNotas() {
           <a id="quiz-link-edit" href="#" target="_blank" class="btn btn-secondary btn-sm">✏️ Editar en Google Forms</a>
           <button class="btn btn-secondary btn-sm" onclick="mostrarQRQuiz()">📱 Ver QR</button>
           <button class="btn btn-secondary btn-sm" onclick="mostrarImportarResultados()">📥 Importar resultados</button>
+          <button class="btn btn-sm" style="background:#dc2626;color:#fff" onclick="confirmarEliminarQuiz()">🗑 Eliminar quiz</button>
         </div>
         <div id="quiz-qr-wrap" style="display:none;text-align:center;margin-top:12px">
           <img id="quiz-qr-img" style="width:150px;height:150px">
