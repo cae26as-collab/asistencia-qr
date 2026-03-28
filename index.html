@@ -2734,17 +2734,35 @@ async function cargarTrabajosParaFichas() {
     return;
   }
   document.getElementById("fic-info").style.display = "none";
-  try {
-    const url  = `${ENDPOINT_URL}?action=getTrabajos&curso=${encodeURIComponent(curso)}&modalidad=${encodeURIComponent(modalidad)}&materia=${encodeURIComponent(materia)}&periodo=${encodeURIComponent(periodo)}`;
-    const res  = await fetch(url, {redirect:"follow"});
-    const data = await res.json();
-    (data.trabajos || []).forEach(t => {
-      const o = document.createElement("option");
-      o.value = JSON.stringify(t);
-      o.textContent = `${t.tipo} — ${t.nombre}`;
-      sel.appendChild(o);
-    });
-  } catch(e) { console.warn(e); }
+
+  // Usar cache de trabajos si ya están cargados para este contexto
+  const cacheKey = `${curso}|${modalidad}|${materia}|${periodo}`;
+  let trabajos = [];
+  if (notasApp._trabajosCache && notasApp._trabajosCacheKey === cacheKey) {
+    trabajos = notasApp._trabajosCache;
+  } else {
+    try {
+      const url  = `${ENDPOINT_URL}?action=getTrabajos&curso=${encodeURIComponent(curso)}&modalidad=${encodeURIComponent(modalidad)}&materia=${encodeURIComponent(materia)}&periodo=${encodeURIComponent(periodo)}`;
+      const res  = await fetch(url, {redirect:"follow"});
+      const data = await res.json();
+      trabajos = data.trabajos || [];
+      // Guardar en cache compartido
+      notasApp._trabajosCache    = trabajos;
+      notasApp._trabajosCacheKey = cacheKey;
+    } catch(e) { console.warn(e); return; }
+  }
+
+  trabajos.forEach(t => {
+    const o = document.createElement("option");
+    o.value = JSON.stringify(t);
+    o.textContent = `${t.tipo} — ${t.nombre}`;
+    sel.appendChild(o);
+  });
+  // Mostrar info si no hay trabajos
+  if (!trabajos.length) {
+    document.getElementById("fic-info").style.display = "block";
+    document.getElementById("fic-info").textContent = "No hay trabajos en este período.";
+  }
 }
 
 function onFicTrabajoChange() {
@@ -2926,15 +2944,53 @@ function renderTrabajosLista() {
     return `<div style="margin-bottom:10px">
       <div style="font-size:11px;font-weight:700;color:${color};text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">${label}</div>
       ${items.map(t => `
-        <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;margin-bottom:4px">
-          <span style="font-size:11px;font-weight:700;color:${color};min-width:40px">${t.id}</span>
-          <span style="flex:1;font-size:13px">${t.nombre}</span>
-          <span style="font-size:11px;color:var(--text2)">${t.fecha||""}</span>
+        <div class="trabajo-item" data-id="${t.id}" style="padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;margin-bottom:4px;cursor:pointer;transition:all var(--tr)"
+          onclick="toggleTrabajoOpciones('${t.id}')">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:11px;font-weight:700;color:${color};min-width:40px">${t.id}</span>
+            <span style="flex:1;font-size:13px">${t.nombre}</span>
+            <span style="font-size:11px;color:var(--text2)">${t.fecha||""}</span>
+            <span style="font-size:11px;color:var(--text2)">▸</span>
+          </div>
+          <div id="trabajo-opts-${t.id}" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:none;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-sm btn-secondary" onclick="event.stopPropagation();abrirFichasDesdeTrabajo('${t.id}')">
+              📄 Crear/Editar Ficha
+            </button>
+            <button class="btn btn-sm btn-secondary" onclick="event.stopPropagation();abrirQuizEditor('${t.id}','${t.nombre.replace(/'/g,"\\'")}')">
+              📝 Crear/Editar Quiz
+            </button>
+          </div>
         </div>`).join("")}
     </div>`;
   }
   lista.innerHTML = renderGrupo("Trabajos Prácticos", tps, "#22c55e") +
                     renderGrupo("Evaluaciones", evs, "#f59e0b");
+}
+
+function toggleTrabajoOpciones(id) {
+  const opts = document.getElementById(`trabajo-opts-${id}`);
+  if (!opts) return;
+  const visible = opts.style.display === "flex";
+  // Cerrar todos los demás
+  document.querySelectorAll('[id^="trabajo-opts-"]').forEach(el => el.style.display = "none");
+  if (!visible) opts.style.display = "flex";
+}
+
+function abrirFichasDesdeTrabajo(idTrabajo) {
+  // Cambiar a sub-tab Fichas y preseleccionar el trabajo
+  switchSubTabNotas("fichas", document.querySelector('[onclick*="fichas"]'));
+  // Esperar a que cargue y luego seleccionar
+  setTimeout(() => {
+    const sel = document.getElementById("fic-trabajo");
+    if (sel) {
+      for (const opt of sel.options) {
+        try {
+          const t = JSON.parse(opt.value);
+          if (t.id === idTrabajo) { sel.value = opt.value; onFicTrabajoChange(); break; }
+        } catch(e) {}
+      }
+    }
+  }, 500);
 }
 
 function poblarSelectorTrabajos() {
@@ -3841,6 +3897,14 @@ function abrirFormEstudiante() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  // Inicializar opciones por defecto del editor de quiz
+  const qzTipo = document.getElementById("qz-nueva-tipo");
+  if (qzTipo) {
+    qzTipo.addEventListener("change", () => {
+      document.getElementById("qz-opciones-lista").innerHTML = "";
+      agregarOpcion(); agregarOpcion();
+    });
+  }
   const fotoInput = document.getElementById("est-foto");
   if (fotoInput) {
     fotoInput.addEventListener("change", function() {
@@ -4273,14 +4337,19 @@ async function generarFichas() {
     const docente   = cfg2?.docente   || "";
     const inst      = alumnos[0]?.institucion || "";
     const loc       = alumnos[0]?.localidad   || "";
-    const logoUrl   = alumnos[0]?.logoUrl     || "";
-    const logoB64   = logoUrl ? (imgCache[logoUrl] || await cargarImgBase64(logoUrl)) : "";
+    // Normalizar URL del logo para que pase correctamente por el proxy
+    const logoUrlRaw = alumnos[0]?.logoUrl || "";
+    const logoUrl    = logoUrlRaw.includes("id=")
+      ? `https://drive.google.com/uc?export=view&id=${logoUrlRaw.match(/id=([^&]+)/)?.[1] || ""}`
+      : logoUrlRaw;
+    const logoB64    = logoUrl ? (imgCache[logoUrl] || await cargarImgBase64(logoUrl)) : "";
 
     const idTrabajo = trabajo.id || trabajo.nombre.replace(/\s+/g,"").substring(0,8);
     const fichas    = [];
     for (const al of alumnos) {
       btn.textContent = `⏳ ${fichas.length+1}/${alumnos.length}`;
-      const qrUrl  = `https://quickchart.io/qr?size=150&text=${encodeURIComponent("KS:"+idTrabajo+":"+al.dni)}`;
+      // QR a 200px para mejor legibilidad al escanearse impreso
+      const qrUrl  = `https://quickchart.io/qr?size=200&margin=1&text=${encodeURIComponent("KS:"+idTrabajo+":"+al.dni)}`;
       const qrB64  = imgCache[qrUrl] || await cargarImgBase64(qrUrl);
       fichas.push({ alumno: al, qrB64 });
     }
@@ -4296,10 +4365,10 @@ async function generarFichas() {
 
 // ── Builder central de fichas ────────────────────────────────
 function _buildFichaHTML(fichas, trabajo, cfg, texto, colorPpal, colorSec, docente, inst, loc, logoB64, curso, modal, materia, preview) {
-  const QR_SIZE = "1.5cm";
+  const QR_SIZE = "2cm";  // Aumentado de 1.5cm a 2cm para mejor legibilidad
   const logoHtml = logoB64
-    ? `<img src="${logoB64}" style="width:55px;height:55px;object-fit:contain;border-radius:4px">`
-    : `<div style="width:55px;height:55px;background:#eee;border-radius:4px"></div>`;
+    ? `<img src="${logoB64}" style="width:60px;height:60px;object-fit:contain;border-radius:4px">`
+    : `<div style="width:60px;height:60px;display:flex;align-items:center;justify-content:center;font-size:28px;background:#f0f0f0;border-radius:4px">🏫</div>`;
 
   const paginasHTML = fichas.map(({ alumno, qrB64 }) => {
     const qrHtml = qrB64
@@ -4468,8 +4537,14 @@ async function cargarCroquisGuardado() {
   // Modo lectura: ocultar reconfig, mostrar botón editar
   document.getElementById("croquis-reconfig").style.display = "none";
   document.getElementById("btn-croquis-editar").style.display = "";
-  document.getElementById("btn-croquis-ver").style.display = "none";
+  const btnVer = document.getElementById("btn-croquis-ver");
+  btnVer.style.display = "none";
+  // Mostrar progreso en el info-guardado
+  const info = document.getElementById("croquis-info-guardado");
+  const textoOrig = info.innerHTML;
+  info.innerHTML = `<span style="color:var(--text2)">⏳ Cargando alumnos y fotografías...</span>`;
   await _cargarYRenderCroquis(curso, modal, false);
+  info.innerHTML = textoOrig;
 }
 
 // ── Activar modo edición ──────────────────────────────────────
@@ -4502,10 +4577,12 @@ async function _cargarYRenderCroquis(curso, modal, edicion) {
       croquis.alumnos = (dataEst.estudiantes||[]).filter(a => a.activo !== false);
       croquis._cursoModal = `${curso}|${modal}`;
 
-      // Pre-cargar fotos vía proxy
+      // Pre-cargar fotos vía proxy con progreso
       const urlsFoto = croquis.alumnos.map(a => a.fotoUrl).filter(u => u && !u.startsWith("data:"));
+      const infoEl = document.getElementById("croquis-info-guardado");
       for (let i = 0; i < urlsFoto.length; i += 4) {
         await Promise.all(urlsFoto.slice(i, i+4).map(u => cargarImgBase64(u)));
+        if (infoEl) infoEl.innerHTML = `<span style="color:var(--text2)">⏳ Cargando fotografías... ${Math.min(i+4, urlsFoto.length)}/${urlsFoto.length}</span>`;
       }
     }
 
@@ -5261,6 +5338,456 @@ async function generarDatosPrueba() {
 
   if (btn) { btn.textContent = "🧪 Generar datos de prueba"; btn.disabled = false; }
 }
+
+// ════════════════════════════════════════════════════════════
+//  MÓDULO QUIZ — Editor y gestor de Google Forms
+// ════════════════════════════════════════════════════════════
+const quizApp = {
+  idTrabajo:  null,
+  nombreTrabajo: null,
+  preguntas:  [],    // Array de preguntas configuradas
+  quizMeta:   null,  // Metadatos del quiz existente
+  resultados: [],    // Resultados importados
+};
+
+// ── Abrir el editor desde la lista de trabajos ──────────────
+async function abrirQuizEditor(idTrabajo, nombreTrabajo) {
+  quizApp.idTrabajo     = idTrabajo;
+  quizApp.nombreTrabajo = nombreTrabajo;
+  quizApp.preguntas     = [];
+  quizApp.quizMeta      = null;
+
+  const curso    = document.getElementById("not-curso").value;
+  const modal    = document.getElementById("not-modalidad").value;
+
+  document.getElementById("quiz-modal-titulo").textContent    = `${idTrabajo} — ${nombreTrabajo}`;
+  document.getElementById("quiz-modal-subtitulo").textContent = `${curso}° año · ${modal}`;
+  document.getElementById("quiz-modal").style.display = "block";
+  document.body.style.overflow = "hidden";
+
+  // Verificar si ya existe un quiz
+  _setQuizEstado("cargando");
+  try {
+    const url  = `${ENDPOINT_URL}?action=getQuiz&curso=${encodeURIComponent(curso)}&modalidad=${encodeURIComponent(modal)}&idTrabajo=${encodeURIComponent(idTrabajo)}`;
+    const res  = await fetch(url, {redirect:"follow"});
+    const data = await res.json();
+    if (data.status === "ok" && data.quiz) {
+      quizApp.quizMeta  = data.quiz;
+      quizApp.preguntas = data.quiz.preguntas || [];
+      mostrarEstadoExistente();
+    } else {
+      // No existe → mostrar editor vacío
+      mostrarEditorQuiz();
+    }
+  } catch(e) {
+    mostrarEditorQuiz();
+  }
+}
+
+function cerrarQuizModal() {
+  document.getElementById("quiz-modal").style.display = "none";
+  document.body.style.overflow = "";
+}
+
+function _setQuizEstado(estado) {
+  ["cargando","existente","editor","importar"].forEach(e => {
+    document.getElementById(`quiz-estado-${e}`).style.display = "none";
+  });
+  document.getElementById(`quiz-estado-${estado}`).style.display = "block";
+}
+
+function mostrarEstadoExistente() {
+  _setQuizEstado("existente");
+  const q = quizApp.quizMeta;
+  if (!q) return;
+  document.getElementById("quiz-info-existente").innerHTML =
+    `Preguntas: <strong>${q.preguntas?.length || 0}</strong> &nbsp;|&nbsp; ` +
+    `Puntaje total: <strong>${q.puntajeTotal}</strong> pts &nbsp;|&nbsp; ` +
+    `Nota sobre 10<br>` +
+    `<span style="font-size:10px;color:var(--text2)">Creado: ${q.createdAt ? new Date(q.createdAt).toLocaleDateString("es-AR") : "—"}</span>`;
+  document.getElementById("quiz-link-form").href = q.formUrl || "#";
+  document.getElementById("quiz-link-edit").href = q.editUrl || "#";
+  document.getElementById("quiz-qr-wrap").style.display = "none";
+}
+
+function mostrarEditorQuiz() {
+  _setQuizEstado("editor");
+  renderPreguntasEditor();
+  actualizarPuntajeTotal();
+  // Inicializar con 2 opciones vacías
+  if (document.getElementById("qz-opciones-lista").children.length === 0) {
+    agregarOpcion(); agregarOpcion();
+  }
+}
+
+function mostrarQRQuiz() {
+  const wrap = document.getElementById("quiz-qr-wrap");
+  const url  = quizApp.quizMeta?.formUrl;
+  if (!url) return;
+  const qrUrl = `https://quickchart.io/qr?size=200&text=${encodeURIComponent(url)}`;
+  document.getElementById("quiz-qr-img").src = qrUrl;
+  wrap.style.display = wrap.style.display === "none" ? "block" : "none";
+}
+
+// ── Editor de preguntas ──────────────────────────────────────
+function renderPreguntasEditor() {
+  const lista = document.getElementById("quiz-preguntas-lista");
+  if (!quizApp.preguntas.length) {
+    lista.innerHTML = '<div class="empty-state" style="padding:12px">Agregá preguntas al quiz ↓</div>';
+    return;
+  }
+  lista.innerHTML = quizApp.preguntas.map((p, i) => `
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:6px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div style="flex:1">
+          <div style="font-size:11px;color:var(--text2);margin-bottom:3px">
+            ${i+1}. ${p.tipo === "multiple" ? "Opción múltiple" : "Casillas"} · <strong>${p.puntaje} pt${p.puntaje !== 1 ? "s" : ""}</strong>
+          </div>
+          <div style="font-size:13px">${p.enunciado}</div>
+          <div style="margin-top:4px;font-size:11px;color:var(--text2)">
+            ${p.opciones.map((op, j) => {
+              const esCorr = p.tipo === "multiple" ? j === p.correcta : p.correctas?.includes(j);
+              return `<span style="color:${esCorr ? "#22c55e" : "var(--text2)"}">
+                ${esCorr ? "✓" : "○"} ${op}</span>`;
+            }).join(" &nbsp; ")}
+          </div>
+        </div>
+        <button onclick="eliminarPregunta(${i})" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:16px;flex-shrink:0">✕</button>
+      </div>
+    </div>`).join("");
+}
+
+function agregarOpcion() {
+  const lista = document.getElementById("qz-opciones-lista");
+  const idx   = lista.children.length;
+  const tipo  = document.getElementById("qz-nueva-tipo").value;
+  const div   = document.createElement("div");
+  div.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:4px";
+  div.innerHTML = `
+    <input type="${tipo === "multiple" ? "radio" : "checkbox"}" name="qz-correcta" value="${idx}"
+      id="qz-opt-${idx}" style="accent-color:var(--accent)">
+    <input type="text" placeholder="Opción ${idx+1}..."
+      style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;padding:6px 10px;outline:none"
+      id="qz-opt-text-${idx}">
+    <button onclick="this.parentElement.remove()" style="background:none;border:none;color:var(--text2);cursor:pointer">✕</button>`;
+  lista.appendChild(div);
+}
+
+document.getElementById("qz-nueva-tipo")?.addEventListener("change", () => {
+  document.getElementById("qz-opciones-lista").innerHTML = "";
+  agregarOpcion(); agregarOpcion();
+});
+
+function agregarPregunta() {
+  const tipo      = document.getElementById("qz-nueva-tipo").value;
+  const enunciado = document.getElementById("qz-nueva-enunciado").value.trim();
+  const puntaje   = parseFloat(document.getElementById("qz-nueva-puntaje").value) || 1;
+
+  if (!enunciado) { alert("Escribí el enunciado de la pregunta."); return; }
+
+  // Leer opciones
+  const optsLista = document.getElementById("qz-opciones-lista").children;
+  const opciones  = [];
+  const correctas = [];
+  let   correcta  = -1;
+
+  for (let i = 0; i < optsLista.length; i++) {
+    const txt = optsLista[i].querySelector(`#qz-opt-text-${i}`)?.value.trim();
+    const chk = optsLista[i].querySelector(`#qz-opt-${i}`);
+    if (!txt) continue;
+    const idx = opciones.length;
+    opciones.push(txt);
+    if (chk?.checked) {
+      if (tipo === "multiple") correcta = idx;
+      else correctas.push(idx);
+    }
+  }
+
+  if (opciones.length < 2) { alert("Agregá al menos 2 opciones."); return; }
+  if (tipo === "multiple"  && correcta < 0)    { alert("Marcá la respuesta correcta."); return; }
+  if (tipo === "casillas"  && !correctas.length){ alert("Marcá al menos una respuesta correcta."); return; }
+
+  quizApp.preguntas.push({ tipo, enunciado, opciones, correcta, correctas, puntaje });
+
+  // Resetear formulario
+  document.getElementById("qz-nueva-enunciado").value = "";
+  document.getElementById("qz-nueva-puntaje").value   = "1";
+  document.getElementById("qz-opciones-lista").innerHTML = "";
+  agregarOpcion(); agregarOpcion();
+
+  renderPreguntasEditor();
+  actualizarPuntajeTotal();
+}
+
+function eliminarPregunta(idx) {
+  quizApp.preguntas.splice(idx, 1);
+  renderPreguntasEditor();
+  actualizarPuntajeTotal();
+}
+
+function actualizarPuntajeTotal() {
+  const total = quizApp.preguntas.reduce((s, p) => s + (p.puntaje || 1), 0);
+  const el = document.getElementById("qz-puntaje-total");
+  if (el) el.textContent = total;
+}
+
+// ── Crear el Quiz en Google Forms ────────────────────────────
+async function crearQuizDesdeEditor() {
+  if (!quizApp.preguntas.length) { alert("Agregá al menos una pregunta."); return; }
+
+  const curso    = document.getElementById("not-curso").value;
+  const modal    = document.getElementById("not-modalidad").value;
+  const materia  = document.getElementById("not-materia").value;
+  const tiempoLimite = parseInt(document.getElementById("qz-tiempo").value) || 0;
+
+  // Datos institucionales
+  const cfg = app.config.find(c =>
+    c.curso == parseInt(curso) && normalizar(c.modalidad) === normalizar(modal) && normalizar(c.materia) === normalizar(materia));
+
+  const btn = document.getElementById("btn-quiz-crear");
+  const msg = document.getElementById("quiz-crear-msg");
+  btn.textContent = "⏳ Creando formulario..."; btn.disabled = true;
+  msg.textContent = "Esto puede tardar unos segundos...";
+  msg.style.color = "var(--text2)";
+
+  try {
+    const res  = await fetch(ENDPOINT_URL, {
+      method:"POST", redirect:"follow",
+      headers:{"Content-Type":"text/plain;charset=UTF-8"},
+      body: JSON.stringify({
+        action:        "crearQuiz",
+        curso,
+        modalidad:     modal,
+        materia,
+        idTrabajo:     quizApp.idTrabajo,
+        nombreTrabajo: quizApp.nombreTrabajo,
+        preguntas:     quizApp.preguntas,
+        tiempoLimite:  tiempoLimite || null,
+        docente:       cfg?.docente      || "",
+        institucion:   "",   // Se toma del padrón en el GAS
+        localidad:     "",
+        colorPpal:     cfg?.colorPpal    || "#000984",
+        colorSec:      cfg?.colorSec     || "#1a29ff",
+      })
+    });
+    const data = await res.json();
+    if (data.status === "ok") {
+      msg.textContent = "✓ Quiz creado correctamente";
+      msg.style.color = "var(--green)";
+      quizApp.quizMeta = {
+        formUrl:      data.formUrl,
+        editUrl:      data.editUrl,
+        puntajeTotal: data.puntajeTotal,
+        preguntas:    quizApp.preguntas,
+        createdAt:    new Date().toISOString()
+      };
+      setTimeout(() => mostrarEstadoExistente(), 1200);
+    } else {
+      msg.textContent = "Error: " + data.message;
+      msg.style.color = "var(--red)";
+    }
+  } catch(e) {
+    msg.textContent = "Error de red: " + e.message;
+    msg.style.color = "var(--red)";
+  } finally {
+    btn.textContent = "🚀 Crear Quiz en Google Forms";
+    btn.disabled    = false;
+  }
+}
+
+// ── Importar resultados ──────────────────────────────────────
+async function mostrarImportarResultados() {
+  _setQuizEstado("importar");
+  const lista = document.getElementById("quiz-resultados-lista");
+  const msg   = document.getElementById("quiz-import-msg");
+  lista.innerHTML = '<div class="empty-state"><div class="spinner" style="margin:0 auto"></div></div>';
+  msg.textContent = "";
+
+  const curso = document.getElementById("not-curso").value;
+  const modal = document.getElementById("not-modalidad").value;
+
+  try {
+    const url  = `${ENDPOINT_URL}?action=getQuizResultados&curso=${encodeURIComponent(curso)}&modalidad=${encodeURIComponent(modal)}&idTrabajo=${encodeURIComponent(quizApp.idTrabajo)}`;
+    const res  = await fetch(url, {redirect:"follow"});
+    const data = await res.json();
+
+    if (data.status !== "ok" || !data.resultados?.length) {
+      lista.innerHTML = '<div class="empty-state">No hay respuestas todavía.</div>';
+      return;
+    }
+
+    quizApp.resultados = data.resultados;
+    lista.innerHTML = `
+      <div style="font-size:12px;color:var(--text2);margin-bottom:8px">${data.total} respuestas recibidas</div>
+      <div style="display:grid;grid-template-columns:1fr auto auto;gap:4px;font-size:11px;font-weight:700;color:var(--text2);padding:0 8px;margin-bottom:4px">
+        <span>Alumno / DNI</span><span>Puntaje</span><span>Nota</span>
+      </div>
+      ${data.resultados.map(r => {
+        const color = r.nota >= 8 ? "#22c55e" : r.nota >= 6 ? "#f59e0b" : "#ef4444";
+        return `<div style="display:grid;grid-template-columns:1fr auto auto;gap:4px;align-items:center;padding:6px 8px;background:var(--bg);border-radius:6px;margin-bottom:3px;font-size:12px">
+          <div>
+            <div style="font-weight:600">${r.nombre || "—"}</div>
+            <div style="color:var(--text2);font-size:10px">DNI: ${r.dni}</div>
+          </div>
+          <div style="color:var(--text2)">${r.puntajeObtenido}/${r.puntajeTotal}</div>
+          <div style="font-weight:700;color:${color};min-width:30px;text-align:right">${r.nota ?? "—"}</div>
+        </div>`;
+      }).join("")}`;
+  } catch(e) {
+    lista.innerHTML = `<div class="empty-state" style="color:var(--red)">Error: ${e.message}</div>`;
+  }
+}
+
+async function confirmarImportarNotas() {
+  if (!quizApp.resultados.length) return;
+  const btn = document.getElementById("btn-quiz-importar");
+  const msg = document.getElementById("quiz-import-msg");
+  btn.textContent = "⏳ Importando..."; btn.disabled = true;
+
+  const curso   = document.getElementById("not-curso").value;
+  const modal   = document.getElementById("not-modalidad").value;
+  const materia = document.getElementById("not-materia").value;
+
+  try {
+    const res  = await fetch(ENDPOINT_URL, {
+      method:"POST", redirect:"follow",
+      headers:{"Content-Type":"text/plain;charset=UTF-8"},
+      body: JSON.stringify({
+        action:      "importarQuizNotas",
+        curso, modalidad: modal, materia,
+        idTrabajo:   quizApp.idTrabajo,
+        resultados:  quizApp.resultados
+      })
+    });
+    const data = await res.json();
+    msg.textContent = data.message || "Importación completada";
+    msg.style.color = data.status === "ok" ? "var(--green)" : "var(--red)";
+    if (data.status === "ok") {
+      // Invalidar cache de notas para refrescar
+      notasApp._trabajosCache = null;
+      setTimeout(() => cerrarQuizModal(), 2000);
+    }
+  } catch(e) {
+    msg.textContent = "Error: " + e.message;
+    msg.style.color = "var(--red)";
+  } finally {
+    btn.textContent = "💾 Importar notas al sistema";
+    btn.disabled    = false;
+  }
+}
 </script>
+
+<!-- ══════════════════════════════════════════════════════════
+     MODAL EDITOR DE QUIZ
+══════════════════════════════════════════════════════════ -->
+<div id="quiz-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:2000;overflow-y:auto;padding:20px">
+  <div style="background:var(--surface);border-radius:16px;max-width:720px;margin:0 auto;padding:20px">
+
+    <!-- Header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div>
+        <div id="quiz-modal-titulo" style="font-size:16px;font-weight:700"></div>
+        <div id="quiz-modal-subtitulo" style="font-size:12px;color:var(--text2)"></div>
+      </div>
+      <button onclick="cerrarQuizModal()" style="background:none;border:none;color:var(--text2);font-size:22px;cursor:pointer">✕</button>
+    </div>
+
+    <!-- Estado: cargando -->
+    <div id="quiz-estado-cargando" style="text-align:center;padding:20px;display:none">
+      <div class="spinner" style="margin:0 auto 8px"></div>
+      <div style="font-size:12px;color:var(--text2)">Verificando quiz existente...</div>
+    </div>
+
+    <!-- Estado: quiz existente -->
+    <div id="quiz-estado-existente" style="display:none">
+      <div style="padding:12px;background:var(--bg);border:1px solid var(--green);border-radius:8px;margin-bottom:12px">
+        <div style="font-size:13px;font-weight:600;color:var(--green);margin-bottom:6px">✓ Quiz creado</div>
+        <div id="quiz-info-existente" style="font-size:12px;color:var(--text2);margin-bottom:10px"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <a id="quiz-link-form" href="#" target="_blank" class="btn btn-primary btn-sm">🔗 Abrir formulario</a>
+          <a id="quiz-link-edit" href="#" target="_blank" class="btn btn-secondary btn-sm">✏️ Editar en Google Forms</a>
+          <button class="btn btn-secondary btn-sm" onclick="mostrarQRQuiz()">📱 Ver QR</button>
+          <button class="btn btn-secondary btn-sm" onclick="mostrarImportarResultados()">📥 Importar resultados</button>
+        </div>
+        <div id="quiz-qr-wrap" style="display:none;text-align:center;margin-top:12px">
+          <img id="quiz-qr-img" style="width:150px;height:150px">
+          <div style="font-size:11px;color:var(--text2);margin-top:4px">Compartí este QR con tus alumnos</div>
+        </div>
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="mostrarEditorQuiz()">↺ Recrear quiz</button>
+    </div>
+
+    <!-- Estado: importar resultados -->
+    <div id="quiz-estado-importar" style="display:none">
+      <div class="card-label" style="margin-bottom:10px">Resultados del Quiz</div>
+      <div id="quiz-resultados-lista" style="max-height:350px;overflow-y:auto;margin-bottom:12px"></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" id="btn-quiz-importar" onclick="confirmarImportarNotas()">💾 Importar notas al sistema</button>
+        <button class="btn btn-secondary" onclick="mostrarEstadoExistente()">← Volver</button>
+      </div>
+      <div id="quiz-import-msg" style="font-size:12px;margin-top:8px"></div>
+    </div>
+
+    <!-- Editor de preguntas -->
+    <div id="quiz-editor" style="display:none">
+      <div id="quiz-preguntas-lista" style="margin-bottom:12px"></div>
+
+      <!-- Agregar pregunta -->
+      <div style="background:var(--bg);border:1px dashed var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
+        <div class="card-label" style="margin-bottom:10px">Nueva pregunta</div>
+        <div class="form-group">
+          <label>Tipo</label>
+          <select id="qz-nueva-tipo">
+            <option value="multiple">Opción múltiple (una correcta)</option>
+            <option value="casillas">Casillas (varias correctas)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Enunciado</label>
+          <textarea id="qz-nueva-enunciado" rows="2" placeholder="Escribí la pregunta..."
+            style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:8px 12px;outline:none;resize:vertical;font-family:inherit"></textarea>
+        </div>
+        <div id="qz-opciones-wrap">
+          <label style="font-size:12px;color:var(--text2);font-weight:600">Opciones (marcá la/s correcta/s)</label>
+          <div id="qz-opciones-lista" style="margin-top:6px"></div>
+          <button class="btn btn-sm btn-secondary" style="margin-top:6px" onclick="agregarOpcion()">+ Agregar opción</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+          <div class="form-group">
+            <label>Puntaje de esta pregunta</label>
+            <input type="number" id="qz-nueva-puntaje" value="1" min="0.5" step="0.5"
+              style="background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:8px 12px;width:100%;outline:none">
+          </div>
+        </div>
+        <button class="btn btn-primary btn-sm" style="margin-top:8px" onclick="agregarPregunta()">✓ Agregar pregunta</button>
+      </div>
+
+      <!-- Opciones del quiz -->
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
+        <div class="card-label" style="margin-bottom:8px">Opciones del quiz</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div class="form-group">
+            <label>Tiempo límite (minutos, 0=sin límite)</label>
+            <input type="number" id="qz-tiempo" value="0" min="0"
+              style="background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:8px 12px;width:100%;outline:none">
+          </div>
+        </div>
+      </div>
+
+      <!-- Puntaje total -->
+      <div style="text-align:right;font-size:13px;color:var(--text2);margin-bottom:12px">
+        Puntaje total: <strong id="qz-puntaje-total" style="color:var(--accent)">0</strong> pts → nota sobre 10
+      </div>
+
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" id="btn-quiz-crear" onclick="crearQuizDesdeEditor()">🚀 Crear Quiz en Google Forms</button>
+        <button class="btn btn-secondary" onclick="cerrarQuizModal()">Cancelar</button>
+      </div>
+      <div id="quiz-crear-msg" style="font-size:12px;margin-top:8px;color:var(--text2)"></div>
+    </div>
+
+  </div>
+</div>
+
 </body>
 </html>
