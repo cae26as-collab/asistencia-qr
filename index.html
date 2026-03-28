@@ -957,31 +957,51 @@ select:focus,input[type="date"]:focus{border-color:var(--accent)}
 
     <!-- Config del aula -->
     <div class="card" id="croquis-config-card">
-      <div class="card-label">Configuración del aula</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
-        <div class="form-group">
-          <label>Filas</label>
-          <input type="number" id="croquis-filas" value="5" min="1" max="10"
-            style="background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;padding:8px 12px;width:100%;outline:none">
-        </div>
-        <div class="form-group">
-          <label>Columnas</label>
-          <input type="number" id="croquis-cols" value="5" min="1" max="8"
-            style="background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;padding:8px 12px;width:100%;outline:none">
-        </div>
-        <div class="form-group">
-          <label>Modo</label>
-          <select id="croquis-modo">
-            <option value="grilla">Grilla fija</option>
-            <option value="libre">Posición libre</option>
-          </select>
+
+      <!-- Estado: cargando (spinner mientras consulta Drive) -->
+      <div id="croquis-estado-cargando" style="display:none;text-align:center;padding:16px 0">
+        <div class="spinner" style="margin:0 auto 8px"></div>
+        <div style="font-size:12px;color:var(--text2)">Buscando croquis guardado…</div>
+      </div>
+
+      <!-- Estado A: hay croquis guardado → mostrar info + botones -->
+      <div id="croquis-estado-guardado" style="display:none">
+        <div class="card-label" style="margin-bottom:10px">Croquis del aula</div>
+        <div id="croquis-info-guardado" style="font-size:12px;color:var(--text2);margin-bottom:12px;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:8px"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-primary btn-sm" onclick="cargarCroquisGuardado()">📐 Ver croquis</button>
+          <button class="btn btn-secondary btn-sm" onclick="activarModoEdicionCroquis()">✏️ Editar disposición</button>
+          <button class="btn btn-secondary btn-sm" id="btn-croquis-guardar" style="display:none" onclick="guardarCroquis()">💾 Guardar disposición</button>
+          <button class="btn btn-secondary btn-sm" id="btn-croquis-asistencia" style="display:none" onclick="toggleModoAsistencia()">👁 Ver asistencia</button>
+          <button class="btn btn-secondary btn-sm" id="btn-croquis-imprimir" style="display:none" onclick="imprimirCroquis()">🖨 Imprimir</button>
         </div>
       </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
+
+      <!-- Estado B: no hay croquis → mostrar formulario de creación -->
+      <div id="croquis-estado-nuevo" style="display:none">
+        <div class="card-label" style="margin-bottom:10px">Crear croquis del aula</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
+          <div class="form-group">
+            <label>Filas</label>
+            <input type="number" id="croquis-filas" value="5" min="1" max="10"
+              style="background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;padding:8px 12px;width:100%;outline:none">
+          </div>
+          <div class="form-group">
+            <label>Columnas</label>
+            <input type="number" id="croquis-cols" value="5" min="1" max="8"
+              style="background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;padding:8px 12px;width:100%;outline:none">
+          </div>
+          <div class="form-group">
+            <label>Modo</label>
+            <select id="croquis-modo">
+              <option value="grilla">Grilla fija</option>
+              <option value="libre">Posición libre</option>
+            </select>
+          </div>
+        </div>
         <button class="btn btn-primary btn-sm" onclick="iniciarCroquis()">🗺 Generar croquis</button>
-        <button class="btn btn-secondary btn-sm" id="btn-croquis-guardar" style="display:none" onclick="guardarCroquis()">💾 Guardar disposición</button>
-        <button class="btn btn-secondary btn-sm" id="btn-croquis-asistencia" style="display:none" onclick="toggleModoAsistencia()">👁 Ver asistencia</button>
       </div>
+
     </div>
 
     <!-- Leyenda modo asistencia -->
@@ -1092,10 +1112,8 @@ if ("serviceWorker" in navigator) {
   });
 }
 
-// Warm-up silencioso del GAS: lo despierta antes de que el usuario lo necesite
-setTimeout(() => {
-  fetch(`${ENDPOINT_URL}?action=ping`, { redirect:"follow" }).catch(() => {});
-}, 1500);
+// Warm-up agresivo: ping inmediato al cargar + getConfig en paralelo
+fetch(`${ENDPOINT_URL}?action=ping`, { redirect:"follow" }).catch(() => {});
 
 // ════════════════════════════════════════════════════════════
 //  CONFIG
@@ -1104,7 +1122,7 @@ const APP_ICON_URI = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAIA
 const APP_NAME     = "KairosScan";
 const APP_VENDOR   = "NanoSoft";
 
-const ENDPOINT_URL = "https://script.google.com/macros/s/AKfycbyuwgzpVHxNQjo1_jfQpbBvOeoBhG2iFoZohueQiC9Cp3C8479qWFrwaMFzoAm7uMDMsw/exec";
+const ENDPOINT_URL = "https://script.google.com/macros/s/AKfycbw6UaOo9tZ7rmyyhsH2iBT4on2yTubf3t-rfqHuZcF3pkXvhRD71cYHMUHSS0AoCUAeAg/exec";
 
 // ════════════════════════════════════════════════════════════
 //  ESTADO GLOBAL
@@ -2638,6 +2656,7 @@ async function poblarPeriodosNotas() {
 }
 
 function onNotPeriodoChange() {
+  notasApp._trabajosCache = null; // Resetear cache al cambiar período
   validarFormNotas();
   cargarTrabajosActuales();
   cargarRendimientoTabla();
@@ -2849,14 +2868,30 @@ async function cargarTrabajosActuales() {
   const periodo  = document.getElementById("not-periodo").value;
   if (!curso || !modalidad || !materia || !periodo) return;
 
+  // Clave de cache
+  const cacheKey = `${curso}|${modalidad}|${materia}|${periodo}`;
+  if (notasApp._trabajosCache && notasApp._trabajosCacheKey === cacheKey) {
+    // Usar cache — poblar selectores sin llamar al GAS
+    _poblarSelectoresTrabajos(notasApp._trabajosCache);
+    return;
+  }
+
   try {
     const url = `${ENDPOINT_URL}?action=getTrabajos&curso=${encodeURIComponent(curso)}&modalidad=${encodeURIComponent(modalidad)}&materia=${encodeURIComponent(materia)}&periodo=${encodeURIComponent(periodo)}`;
     const res  = await fetch(url, {redirect:"follow"});
     const data = await res.json();
-    notasApp.trabajos = data.trabajos || [];
-    renderTrabajosLista();
-    poblarSelectorTrabajos();
+    const trabajos = data.trabajos || [];
+    // Guardar en cache
+    notasApp._trabajosCache    = trabajos;
+    notasApp._trabajosCacheKey = cacheKey;
+    _poblarSelectoresTrabajos(trabajos);
   } catch(e) { console.warn("Error cargando trabajos:", e); }
+}
+
+function _poblarSelectoresTrabajos(trabajos) {
+  notasApp.trabajos = trabajos;
+  renderTrabajosLista();
+  poblarSelectorTrabajos();
 }
 
 function renderTrabajosLista() {
@@ -2921,6 +2956,7 @@ async function crearTrabajo() {
     if (data.status === "ok") {
       document.getElementById("not-nuevo-nombre").value = "";
       document.getElementById("not-nuevo-fecha").value  = "";
+      notasApp._trabajosCache = null; // Invalidar cache
       await cargarTrabajosActuales();
     } else { alert("Error: " + data.message); }
   } catch(e) { alert("Error de red: " + e.message); }
@@ -4340,68 +4376,389 @@ function onCroCursoChange() {
   const mods = [...new Set(app.config.filter(c => c.curso == curso).map(c => c.modalidad))];
   mods.forEach(m => { const o=document.createElement("option"); o.value=m; o.textContent=m; sel.appendChild(o); });
   sel.disabled = !curso;
+  // Resetear panel al cambiar curso
+  _setCroquisEstado("oculto");
+  document.getElementById("croquis-area").style.display = "none";
+  croquis._cursoModal = null;
 }
-function onCroModalChange() {
-  // Habilitar botón generar si hay selección completa
-  const ok = document.getElementById("cro-curso").value && document.getElementById("cro-modal").value;
-  // El botón ya está ahí, solo validar
-}
-// Poblar selector de curso del croquis
+
 function poblarSelectoresCroquis() {
   const sel = document.getElementById("cro-curso");
   if (!sel) return;
+  const valorActual = sel.value;
   sel.innerHTML = '<option value="">— Curso —</option>';
-  const cursos = [...new Set(app.config.map(c => c.curso))].sort();
-  cursos.forEach(c => { const o=document.createElement("option"); o.value=c; o.textContent=c+"° año"; sel.appendChild(o); });
+  const cursos = [...new Set(app.config.map(c => c.curso))].sort((a,b) => a-b);
+  cursos.forEach(c => {
+    const o = document.createElement("option");
+    o.value = c; o.textContent = c + "° año";
+    sel.appendChild(o);
+  });
+  if (valorActual) sel.value = valorActual;
+}
+function onCroModalChange() {
+  const curso = document.getElementById("cro-curso").value;
+  const modal = document.getElementById("cro-modal").value;
+  if (!curso || !modal) return;
+  // Al seleccionar filtros → consultar automáticamente si hay croquis guardado
+  verificarCroquisGuardado(curso, modal);
 }
 
+// ── Helpers para mostrar/ocultar estados del panel ────────────
+function _setCroquisEstado(estado) {
+  // estados: "cargando" | "guardado" | "nuevo" | "oculto"
+  document.getElementById("croquis-estado-cargando").style.display = estado === "cargando" ? "block" : "none";
+  document.getElementById("croquis-estado-guardado").style.display  = estado === "guardado"  ? "block" : "none";
+  document.getElementById("croquis-estado-nuevo").style.display     = estado === "nuevo"     ? "block" : "none";
+}
+
+// ── Al seleccionar filtros: buscar croquis guardado ───────────
+async function verificarCroquisGuardado(curso, modal) {
+  _setCroquisEstado("cargando");
+  document.getElementById("croquis-area").style.display = "none";
+  croquis.modoEdicion = false;
+
+  try {
+    const urlC = `${ENDPOINT_URL}?action=getCroquis&curso=${encodeURIComponent(curso)}&modalidad=${encodeURIComponent(modal)}`;
+    const resC = await fetch(urlC, {redirect:"follow"});
+    const dataC = await resC.json();
+    const tieneGuardado = dataC.status === "ok" && dataC.croquis && Object.keys(dataC.croquis).length > 0;
+
+    if (tieneGuardado) {
+      // Guardar datos para carga posterior
+      croquis._dataCargada = dataC.croquis;
+      const cant = Object.keys(dataC.croquis).length;
+      document.getElementById("croquis-info-guardado").innerHTML =
+        `<span style="color:var(--green)">✓</span> Disposición guardada — <strong>${cant}</strong> alumno${cant!==1?"s":""} asignado${cant!==1?"s":""}`;
+      _setCroquisEstado("guardado");
+    } else {
+      croquis._dataCargada = null;
+      _setCroquisEstado("nuevo");
+    }
+  } catch(e) {
+    // Si falla la consulta, mostrar formulario de creación
+    croquis._dataCargada = null;
+    _setCroquisEstado("nuevo");
+  }
+}
+
+// ── Cargar y mostrar el croquis guardado (modo lectura) ───────
+async function cargarCroquisGuardado() {
+  const curso = document.getElementById("cro-curso").value;
+  const modal = document.getElementById("cro-modal").value;
+  await _cargarYRenderCroquis(curso, modal, false);
+}
+
+// ── Activar modo edición ──────────────────────────────────────
+async function activarModoEdicionCroquis() {
+  const curso = document.getElementById("cro-curso").value;
+  const modal = document.getElementById("cro-modal").value;
+  // Mostrar controles de edición
+  document.getElementById("btn-croquis-guardar").style.display = "";
+  document.getElementById("btn-croquis-asistencia").style.display = "";
+  croquis.modoEdicion = true;
+  await _cargarYRenderCroquis(curso, modal, true);
+}
+
+// ── Core: carga alumnos + fotos + croquis y renderiza ─────────
+async function _cargarYRenderCroquis(curso, modal, edicion) {
+  const btn = edicion
+    ? document.querySelector("#croquis-estado-guardado .btn-primary + button")
+    : document.querySelector("#croquis-estado-guardado .btn-primary");
+  if (btn) { btn.textContent = "⏳ Cargando..."; btn.disabled = true; }
+
+  try {
+    // Cargar alumnos (si no están ya en memoria para este curso/modal)
+    if (!croquis._cursoModal || croquis._cursoModal !== `${curso}|${modal}`) {
+      const urlEst = `${ENDPOINT_URL}?action=getEstudiantes&curso=${encodeURIComponent(curso)}&modalidad=${encodeURIComponent(modal)}`;
+      const resEst = await fetch(urlEst, {redirect:"follow"});
+      const dataEst = await resEst.json();
+      croquis.alumnos = (dataEst.estudiantes||[]).filter(a => a.activo !== false);
+      croquis._cursoModal = `${curso}|${modal}`;
+
+      // Pre-cargar fotos vía proxy
+      const urlsFoto = croquis.alumnos.map(a => a.fotoUrl).filter(u => u && !u.startsWith("data:"));
+      for (let i = 0; i < urlsFoto.length; i += 4) {
+        await Promise.all(urlsFoto.slice(i, i+4).map(u => cargarImgBase64(u)));
+      }
+    }
+
+    // Usar datos ya cargados o pedir de nuevo
+    if (croquis._dataCargada) {
+      croquis.bancos = croquis._dataCargada;
+    } else {
+      // Nuevo croquis sin datos guardados
+      croquis.bancos = {};
+      croquis.filas = parseInt(document.getElementById("croquis-filas")?.value || 5);
+      croquis.cols  = parseInt(document.getElementById("croquis-cols")?.value  || 5);
+    }
+
+    // Cargar asistencia del día
+    const config0 = app.config.find(c => c.curso == parseInt(curso) && normalizar(c.modalidad) === normalizar(modal));
+    if (config0) {
+      const fecha = new Date().toISOString().slice(0,10);
+      const urlA = `${ENDPOINT_URL}?action=getPresentes&curso=${encodeURIComponent(curso)}&modalidad=${encodeURIComponent(modal)}&materia=${encodeURIComponent(config0.materia)}&fecha=${encodeURIComponent(fecha)}`;
+      try {
+        const resA = await fetch(urlA, {redirect:"follow"});
+        const dataA = await resA.json();
+        croquis.presentes = new Set((dataA.presentes||[]).map(p => p.dni));
+      } catch(e) { croquis.presentes = new Set(); }
+    }
+
+    renderCroquis();
+    document.getElementById("croquis-area").style.display = "block";
+
+    // Mostrar/ocultar botones según modo
+    document.getElementById("btn-croquis-guardar").style.display    = edicion ? "" : "none";
+    document.getElementById("btn-croquis-asistencia").style.display = "";
+    document.getElementById("btn-croquis-imprimir").style.display   = "";
+
+    if (!edicion) {
+      // Modo lectura: ocultar pool de sin asignar
+      document.getElementById("croquis-sin-asignar").style.display = "none";
+    }
+
+  } finally {
+    if (btn) {
+      btn.textContent = edicion ? "✏️ Editar disposición" : "📐 Ver croquis";
+      btn.disabled = false;
+    }
+  }
+}
+
+// ── iniciarCroquis: crear nuevo desde el formulario ───────────
 async function iniciarCroquis() {
-  const curso  = document.getElementById("cro-curso").value;
-  const modal  = document.getElementById("cro-modal").value;
-  if (!curso || !modal) { alert("Seleccioná curso y modalidad del croquis."); return; }
+  const curso = document.getElementById("cro-curso").value;
+  const modal = document.getElementById("cro-modal").value;
+  if (!curso || !modal) { alert("Seleccioná curso y modalidad."); return; }
 
   croquis.filas = parseInt(document.getElementById("croquis-filas").value) || 5;
   croquis.cols  = parseInt(document.getElementById("croquis-cols").value)  || 5;
   croquis.modo  = document.getElementById("croquis-modo").value;
+  croquis._dataCargada = null;
+  croquis.bancos = {};
 
-  // Cargar alumnos
-  const url  = `${ENDPOINT_URL}?action=getEstudiantes&curso=${encodeURIComponent(curso)}&modalidad=${encodeURIComponent(modal)}`;
-  const res  = await fetch(url, {redirect:"follow"});
-  const data = await res.json();
-  croquis.alumnos = (data.estudiantes||[]).filter(a => a.activo !== false);
-
-  // Pre-cargar fotos
-  const urlsFoto = croquis.alumnos.map(a => a.fotoUrl).filter(u => u && !u.startsWith("data:"));
-  for (let i=0; i<urlsFoto.length; i+=4) {
-    await Promise.all(urlsFoto.slice(i,i+4).map(u => cargarImgBase64(u)));
-  }
-
-  // Cargar disposición guardada
-  const urlC = `${ENDPOINT_URL}?action=getCroquis&curso=${encodeURIComponent(curso)}&modalidad=${encodeURIComponent(modal)}`;
-  const resC = await fetch(urlC, {redirect:"follow"});
-  const dataC = await resC.json();
-  croquis.bancos = (dataC.status === "ok" && dataC.croquis) ? dataC.croquis : {};
-
-  // Cargar asistencia del día
-  const config0 = app.config.find(c => c.curso == parseInt(curso) && normalizar(c.modalidad) === normalizar(modal));
-  if (config0) {
-    const fecha = new Date().toISOString().slice(0,10);
-    const urlA = `${ENDPOINT_URL}?action=getPresentes&curso=${encodeURIComponent(curso)}&modalidad=${encodeURIComponent(modal)}&materia=${encodeURIComponent(config0.materia)}&fecha=${encodeURIComponent(fecha)}`;
-    try {
-      const resA = await fetch(urlA, {redirect:"follow"});
-      const dataA = await resA.json();
-      croquis.presentes = new Set((dataA.presentes||[]).map(p => p.dni));
-    } catch(e) {}
-  }
-
-  renderCroquis();
-  document.getElementById("croquis-area").style.display = "block";
+  // Pasar a estado "guardado" con controles de edición activos
+  document.getElementById("croquis-info-guardado").innerHTML =
+    `<span style="color:var(--text2)">Nuevo croquis — ${croquis.filas} filas × ${croquis.cols} columnas</span>`;
+  _setCroquisEstado("guardado");
   document.getElementById("btn-croquis-guardar").style.display = "";
-  document.getElementById("btn-croquis-asistencia").style.display = "";
-  // Si hay disposición guardada, indicarlo visualmente
-  const tieneGuardado = dataC.status === "ok" && dataC.croquis && Object.keys(dataC.croquis).length > 0;
-  const btnGen = document.querySelector("#croquis-config-card .btn-primary");
-  if (btnGen) btnGen.textContent = tieneGuardado ? "🔄 Recargar croquis" : "🗺 Generar croquis";
+  document.getElementById("btn-croquis-asistencia").style.display = "none";
+
+  await _cargarYRenderCroquis(curso, modal, true);
+}
+
+// ── Botón "Editar" desde estado guardado: también muestra config ─
+function activarConfigCroquis() {
+  // Mostrar inputs de filas/cols para reconfigurar si el docente quiere
+  const nuevo = document.getElementById("croquis-estado-nuevo");
+  nuevo.style.display = nuevo.style.display === "none" ? "block" : "none";
+}
+
+
+// ── Imprimir croquis en media A4 ─────────────────────────────
+async function imprimirCroquis() {
+  const curso = document.getElementById("cro-curso").value;
+  const modal = document.getElementById("cro-modal").value;
+  if (!Object.keys(croquis.bancos).length) { alert("No hay alumnos asignados en el croquis."); return; }
+
+  // Preguntar si con o sin foto
+  const conFoto = confirm("¿Incluir fotografías de los alumnos?\n\nAceptar = Con fotos\nCancelar = Solo nombres");
+
+  // Datos institucionales
+  const cfg = app.config.find(c => c.curso == parseInt(curso) && normalizar(c.modalidad) === normalizar(modal));
+  const colorPpal = cfg?.colorPpal || "#000984";
+  const colorSec  = cfg?.colorSec  || "#1a29ff";
+  const docente   = cfg?.docente   || "";
+  const materia   = cfg?.materia   || "";
+
+  // Institución del primer alumno asignado
+  const primerDni = Object.values(croquis.bancos)[0]?.dni;
+  const primerAl  = croquis.alumnos.find(a => a.dni === primerDni);
+  const inst      = primerAl?.institucion || "";
+  const loc       = primerAl?.localidad   || "";
+
+  // Calcular filas y columnas reales del croquis
+  const filas = croquis.filas || 5;
+  const cols  = croquis.cols  || 5;
+
+  // Construir grilla HTML para la impresión
+  let celdasHtml = "";
+  for (let f = 0; f < filas; f++) {
+    for (let c = 0; c < cols; c++) {
+      const key   = `${f}-${c}`;
+      const banco = croquis.bancos[key];
+      if (banco) {
+        const fotoSrc = conFoto ? (imgCache[banco.fotoUrl] || "") : "";
+        const partes  = banco.nombre.trim().split(/\s+/);
+        const apellido= partes[0] || "";
+        const nombre  = partes[partes.length-1] || "";
+        celdasHtml += `
+          <div class="celda ocupada">
+            ${conFoto && fotoSrc
+              ? `<div class="foto-wrap"><img src="${fotoSrc}"></div>`
+              : conFoto
+                ? `<div class="foto-placeholder">👤</div>`
+                : ""}
+            <div class="cel-apellido">${apellido}</div>
+            <div class="cel-nombre">${nombre}</div>
+          </div>`;
+      } else {
+        celdasHtml += `<div class="celda vacia"></div>`;
+      }
+    }
+  }
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <style>
+    @page { size: A4 portrait; margin: 0; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; background: #fff;
+           -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+    /* Ocupa la mitad superior de la A4 */
+    .pagina {
+      width: 210mm;
+      height: 148.5mm;
+      padding: 6mm 8mm 5mm;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Encabezado */
+    .enc {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4mm;
+      border-bottom: 2px solid ${colorPpal};
+      padding-bottom: 3mm;
+    }
+    .enc-barra {
+      width: 5px; height: 36px;
+      background: ${colorPpal};
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+    .enc-texto { flex: 1; }
+    .enc-inst  { font-size: 9pt; font-weight: 700; color: ${colorPpal}; }
+    .enc-loc   { font-size: 7.5pt; color: #555; }
+    .enc-det   { font-size: 7.5pt; color: #333; margin-top: 2px; }
+    .enc-fecha { font-size: 7pt; color: #888; text-align: right; }
+
+    /* Grilla */
+    .grilla {
+      display: grid;
+      grid-template-columns: repeat(${cols}, 1fr);
+      gap: 2mm;
+      flex: 1;
+    }
+
+    .celda {
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2px;
+      overflow: hidden;
+    }
+    .celda.vacia {
+      background: #f8f8f8;
+      border-style: dashed;
+      border-color: #ddd;
+    }
+    .celda.ocupada { background: #fff; }
+
+    .foto-wrap {
+      width: ${conFoto ? Math.min(32, Math.floor(120/cols)) : 0}px;
+      height: ${conFoto ? Math.min(32, Math.floor(120/cols)) : 0}px;
+      border-radius: 50%;
+      overflow: hidden;
+      margin-bottom: 2px;
+    }
+    .foto-wrap img { width: 100%; height: 100%; object-fit: cover; }
+    .foto-placeholder {
+      font-size: ${Math.min(18, Math.floor(72/cols))}px;
+      margin-bottom: 2px;
+      color: #aaa;
+    }
+
+    .cel-apellido {
+      font-size: ${Math.max(5, Math.min(8, Math.floor(36/cols)))}pt;
+      font-weight: 700;
+      text-align: center;
+      line-height: 1.1;
+      color: #111;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .cel-nombre {
+      font-size: ${Math.max(4.5, Math.min(7, Math.floor(32/cols)))}pt;
+      text-align: center;
+      color: #444;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Frente del aula */
+    .frente {
+      text-align: center;
+      margin-top: 3mm;
+      padding: 2px 0;
+      background: ${colorSec}22;
+      border: 1px solid ${colorSec};
+      border-radius: 4px;
+      font-size: 7pt;
+      font-weight: 700;
+      color: ${colorSec};
+      letter-spacing: 1px;
+    }
+
+    /* Línea de corte para la segunda mitad vacía */
+    .linea-corte {
+      width: 210mm;
+      border-top: 1px dashed #bbb;
+      margin: 0;
+    }
+  </style></head><body>
+
+  <div class="pagina">
+    <div class="enc">
+      <div class="enc-barra"></div>
+      <div class="enc-texto">
+        <div class="enc-inst">${inst}</div>
+        <div class="enc-loc">${loc}</div>
+        <div class="enc-det">
+          <strong>${curso}° año</strong> — ${modal}
+          ${materia ? " | " + materia : ""}
+          ${docente ? " | " + docente : ""}
+        </div>
+      </div>
+      <div class="enc-fecha">
+        Disposición del aula<br>
+        ${new Date().toLocaleDateString("es-AR")}
+      </div>
+    </div>
+
+    <div class="grilla">${celdasHtml}</div>
+
+    <div class="frente">▬▬ FRENTE DEL AULA / PIZARRÓN ▬▬</div>
+  </div>
+
+  <div class="linea-corte"></div>
+
+  <script>window.addEventListener("load", () => setTimeout(() => window.print(), 400));<\/script>
+  </body></html>`;
+
+  const win = window.open("", "_blank", "width=900,height=700");
+  if (!win) { alert("Habilitá las ventanas emergentes para imprimir."); return; }
+  win.document.write(html);
+  win.document.close();
 }
 
 function aplicarZoomCroquis(val) {
@@ -4411,6 +4768,20 @@ function aplicarZoomCroquis(val) {
   if (lbl) lbl.textContent = val + "%";
 }
 
+
+// ── Formatear nombre para banco del croquis ──────────────────
+function formatNombreBanco(nombreCompleto) {
+  if (!nombreCompleto) return "";
+  const partes = nombreCompleto.trim().split(/\s+/);
+  if (partes.length === 1) return partes[0];
+  // Convención: "APELLIDO NOMBRE" o "APELLIDO1 APELLIDO2 NOMBRE1 NOMBRE2"
+  // Mostramos: primer nombre + inicial del primer apellido
+  // El primer nombre suele ser el penúltimo o último token
+  // El apellido es el primero
+  const apellido  = partes[0];               // ej: GARCIA
+  const primerNom = partes[partes.length-1]; // ej: JUAN (último token)
+  return `${primerNom} ${apellido.charAt(0)}.`;
+}
 function renderCroquis() {
   const grid = document.getElementById("croquis-grid");
   const gap  = 6;
@@ -4434,7 +4805,7 @@ function renderCroquis() {
           ? `<img class="banco-foto" src="${fotoSrc}" onerror="this.style.display='none'">`
           : `<div class="banco-foto-placeholder">👤</div>`)
         : `<div style="font-size:20px;color:var(--border)">+</div>`;
-      const nombre = banco ? banco.nombre.split(" ").slice(-1)[0] : "";
+      const nombre = banco ? formatNombreBanco(banco.nombre) : "";
       html += `<div class="${cls}" data-key="${key}"
         draggable="${banco?'true':'false'}"
         ondragover="event.preventDefault();this.classList.add('drag-over')"
@@ -4462,7 +4833,7 @@ function renderCroquis() {
         ondragstart="onDragPool(event,'${a.dni}')"
         onclick="onClickPool('${a.dni}')">
         ${src ? `<img src="${src}" onerror="this.style.display='none'">` : `<div style="width:38px;height:38px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:18px">👤</div>`}
-        <span>${a.nombre.split(" ").slice(-1)[0]}</span>
+        <span>${formatNombreBanco(a.nombre)}</span>
       </div>`;
     }).join("");
   } else {
@@ -4539,8 +4910,8 @@ function filtrarAlumnosCroquis() {
         ${src ? `<img src="${src}" style="width:100%;height:100%;object-fit:cover">` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:18px">👤</div>`}
       </div>
       <div>
-        <div style="font-size:13px;font-weight:600">${a.nombre}</div>
-        <div style="font-size:11px;color:var(--text2)">DNI: ${a.dni}</div>
+        <div style="font-size:13px;font-weight:600">${formatNombreBanco(a.nombre)}</div>
+        <div style="font-size:11px;color:var(--text2)">${a.nombre}</div>
       </div>
     </div>`;
   }).join("");
@@ -4573,6 +4944,12 @@ async function guardarCroquis() {
     });
     const data = await res.json();
     if (data.status === "ok") {
+      // Actualizar info del panel
+      const cant = Object.keys(croquis.bancos).length;
+      const infoEl = document.getElementById("croquis-info-guardado");
+      if (infoEl) infoEl.innerHTML =
+        `<span style="color:var(--green)">✓</span> Disposición guardada — <strong>${cant}</strong> alumno${cant!==1?"s":""} asignado${cant!==1?"s":""}`;
+      croquis._dataCargada = {...croquis.bancos};
       btn.textContent = "✓ Guardado";
       btn.style.background = "var(--green)";
       btn.style.color = "#fff";
