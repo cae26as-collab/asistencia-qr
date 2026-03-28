@@ -967,10 +967,29 @@ select:focus,input[type="date"]:focus{border-color:var(--accent)}
       <!-- Estado A: hay croquis guardado → mostrar info + botones -->
       <div id="croquis-estado-guardado" style="display:none">
         <div class="card-label" style="margin-bottom:10px">Croquis del aula</div>
-        <div id="croquis-info-guardado" style="font-size:12px;color:var(--text2);margin-bottom:12px;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:8px"></div>
+        <div id="croquis-info-guardado" style="font-size:12px;color:var(--text2);margin-bottom:10px;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:8px"></div>
+
+        <!-- Panel de reconfiguración (visible solo en modo edición) -->
+        <div id="croquis-reconfig" style="display:none;margin-bottom:10px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px">
+          <div style="font-size:11px;color:var(--text2);margin-bottom:8px">Reconfigurar tamaño del aula:</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end">
+            <div class="form-group" style="margin:0">
+              <label style="font-size:11px">Filas</label>
+              <input type="number" id="croquis-filas" value="5" min="1" max="10"
+                style="background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:6px 10px;width:100%;outline:none">
+            </div>
+            <div class="form-group" style="margin:0">
+              <label style="font-size:11px">Columnas</label>
+              <input type="number" id="croquis-cols" value="5" min="1" max="10"
+                style="background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:6px 10px;width:100%;outline:none">
+            </div>
+            <button class="btn btn-sm btn-secondary" onclick="redimensionarCroquis()" style="padding:6px 10px;font-size:12px">↺ Aplicar</button>
+          </div>
+        </div>
+
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-primary btn-sm" onclick="cargarCroquisGuardado()">📐 Ver croquis</button>
-          <button class="btn btn-secondary btn-sm" onclick="activarModoEdicionCroquis()">✏️ Editar disposición</button>
+          <button class="btn btn-primary btn-sm" id="btn-croquis-ver" onclick="cargarCroquisGuardado()">📐 Ver croquis</button>
+          <button class="btn btn-secondary btn-sm" id="btn-croquis-editar" onclick="activarModoEdicionCroquis()">✏️ Editar disposición</button>
           <button class="btn btn-secondary btn-sm" id="btn-croquis-guardar" style="display:none" onclick="guardarCroquis()">💾 Guardar disposición</button>
           <button class="btn btn-secondary btn-sm" id="btn-croquis-asistencia" style="display:none" onclick="toggleModoAsistencia()">👁 Ver asistencia</button>
           <button class="btn btn-secondary btn-sm" id="btn-croquis-imprimir" style="display:none" onclick="imprimirCroquis()">🖨 Imprimir</button>
@@ -983,12 +1002,12 @@ select:focus,input[type="date"]:focus{border-color:var(--accent)}
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
           <div class="form-group">
             <label>Filas</label>
-            <input type="number" id="croquis-filas" value="5" min="1" max="10"
+            <input type="number" id="croquis-filas-nuevo" value="5" min="1" max="10"
               style="background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;padding:8px 12px;width:100%;outline:none">
           </div>
           <div class="form-group">
             <label>Columnas</label>
-            <input type="number" id="croquis-cols" value="5" min="1" max="8"
+            <input type="number" id="croquis-cols-nuevo" value="5" min="1" max="10"
               style="background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;padding:8px 12px;width:100%;outline:none">
           </div>
           <div class="form-group">
@@ -4423,8 +4442,10 @@ async function verificarCroquisGuardado(curso, modal) {
     const tieneGuardado = dataC.status === "ok" && dataC.croquis && Object.keys(dataC.croquis).length > 0;
 
     if (tieneGuardado) {
-      // Guardar datos para carga posterior
-      croquis._dataCargada = dataC.croquis;
+      // Guardar datos para carga posterior (incluyendo dimensiones si las tiene)
+      croquis._dataCargada     = dataC.croquis;
+      croquis._filasGuardadas  = dataC.filas  || null;
+      croquis._colsGuardadas   = dataC.cols   || null;
       const cant = Object.keys(dataC.croquis).length;
       document.getElementById("croquis-info-guardado").innerHTML =
         `<span style="color:var(--green)">✓</span> Disposición guardada — <strong>${cant}</strong> alumno${cant!==1?"s":""} asignado${cant!==1?"s":""}`;
@@ -4444,6 +4465,10 @@ async function verificarCroquisGuardado(curso, modal) {
 async function cargarCroquisGuardado() {
   const curso = document.getElementById("cro-curso").value;
   const modal = document.getElementById("cro-modal").value;
+  // Modo lectura: ocultar reconfig, mostrar botón editar
+  document.getElementById("croquis-reconfig").style.display = "none";
+  document.getElementById("btn-croquis-editar").style.display = "";
+  document.getElementById("btn-croquis-ver").style.display = "none";
   await _cargarYRenderCroquis(curso, modal, false);
 }
 
@@ -4451,9 +4476,12 @@ async function cargarCroquisGuardado() {
 async function activarModoEdicionCroquis() {
   const curso = document.getElementById("cro-curso").value;
   const modal = document.getElementById("cro-modal").value;
-  // Mostrar controles de edición
+  // Mostrar panel de reconfiguración y controles de edición
+  document.getElementById("croquis-reconfig").style.display = "block";
   document.getElementById("btn-croquis-guardar").style.display = "";
   document.getElementById("btn-croquis-asistencia").style.display = "";
+  document.getElementById("btn-croquis-ver").style.display = "";
+  document.getElementById("btn-croquis-editar").style.display = "none";
   croquis.modoEdicion = true;
   await _cargarYRenderCroquis(curso, modal, true);
 }
@@ -4484,15 +4512,21 @@ async function _cargarYRenderCroquis(curso, modal, edicion) {
     // Usar datos ya cargados o pedir de nuevo
     if (croquis._dataCargada) {
       croquis.bancos = croquis._dataCargada;
-      // Recalcular filas y cols desde las claves guardadas ("fila-col")
-      let maxFila = 0, maxCol = 0;
-      Object.keys(croquis.bancos).forEach(key => {
-        const [f, c] = key.split("-").map(Number);
-        if (f > maxFila) maxFila = f;
-        if (c > maxCol)  maxCol  = c;
-      });
-      croquis.filas = maxFila + 1;
-      croquis.cols  = maxCol  + 1;
+      // Usar filas/cols guardados si están disponibles, sino calcular desde claves
+      if (croquis._filasGuardadas && croquis._colsGuardadas) {
+        croquis.filas = croquis._filasGuardadas;
+        croquis.cols  = croquis._colsGuardadas;
+      } else {
+        // Fallback: calcular desde las posiciones ocupadas + margen de 1
+        let maxFila = 4, maxCol = 4; // mínimo 5x5
+        Object.keys(croquis.bancos).forEach(key => {
+          const [f, c] = key.split("-").map(Number);
+          if (f > maxFila) maxFila = f;
+          if (c > maxCol)  maxCol  = c;
+        });
+        croquis.filas = maxFila + 1;
+        croquis.cols  = maxCol  + 1;
+      }
       // Actualizar los inputs para que reflejen el tamaño real
       const inpFilas = document.getElementById("croquis-filas");
       const inpCols  = document.getElementById("croquis-cols");
@@ -4544,9 +4578,9 @@ async function iniciarCroquis() {
   const modal = document.getElementById("cro-modal").value;
   if (!curso || !modal) { alert("Seleccioná curso y modalidad."); return; }
 
-  croquis.filas = parseInt(document.getElementById("croquis-filas").value) || 5;
-  croquis.cols  = parseInt(document.getElementById("croquis-cols").value)  || 5;
-  croquis.modo  = document.getElementById("croquis-modo").value;
+  croquis.filas = parseInt(document.getElementById("croquis-filas-nuevo")?.value || document.getElementById("croquis-filas")?.value || 5);
+  croquis.cols  = parseInt(document.getElementById("croquis-cols-nuevo")?.value  || document.getElementById("croquis-cols")?.value  || 5);
+  croquis.modo  = document.getElementById("croquis-modo")?.value || "grilla";
   croquis._dataCargada = null;
   croquis.bancos = {};
 
@@ -4943,6 +4977,23 @@ function asignarAlumnoBanco(dni) {
 }
 
 // ── Guardar disposición ──────────────────────────────────────
+
+// ── Redimensionar croquis sin perder los alumnos asignados ───
+function redimensionarCroquis() {
+  const nuevasFilas = parseInt(document.getElementById("croquis-filas")?.value || 5);
+  const nuevasCols  = parseInt(document.getElementById("croquis-cols")?.value  || 5);
+  if (nuevasFilas < 1 || nuevasCols < 1) return;
+  // Eliminar bancos fuera del nuevo tamaño
+  const bancosNuevos = {};
+  Object.entries(croquis.bancos).forEach(([key, val]) => {
+    const [f, c] = key.split("-").map(Number);
+    if (f < nuevasFilas && c < nuevasCols) bancosNuevos[key] = val;
+  });
+  croquis.filas  = nuevasFilas;
+  croquis.cols   = nuevasCols;
+  croquis.bancos = bancosNuevos;
+  renderCroquis();
+}
 async function guardarCroquis() {
   const curso = document.getElementById("cro-curso").value || document.getElementById("est-curso").value;
   const modal = document.getElementById("cro-modal").value || document.getElementById("est-modal").value;
@@ -4953,7 +5004,8 @@ async function guardarCroquis() {
     const res  = await fetch(ENDPOINT_URL, {
       method:"POST", redirect:"follow",
       headers:{"Content-Type":"text/plain;charset=UTF-8"},
-      body: JSON.stringify({ action:"guardarCroquis", curso, modalidad:modal, croquis: croquis.bancos })
+      body: JSON.stringify({ action:"guardarCroquis", curso, modalidad:modal,
+        croquis: croquis.bancos, filas: croquis.filas, cols: croquis.cols })
     });
     const data = await res.json();
     if (data.status === "ok") {
