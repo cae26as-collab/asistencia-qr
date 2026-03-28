@@ -4484,6 +4484,20 @@ async function _cargarYRenderCroquis(curso, modal, edicion) {
     // Usar datos ya cargados o pedir de nuevo
     if (croquis._dataCargada) {
       croquis.bancos = croquis._dataCargada;
+      // Recalcular filas y cols desde las claves guardadas ("fila-col")
+      let maxFila = 0, maxCol = 0;
+      Object.keys(croquis.bancos).forEach(key => {
+        const [f, c] = key.split("-").map(Number);
+        if (f > maxFila) maxFila = f;
+        if (c > maxCol)  maxCol  = c;
+      });
+      croquis.filas = maxFila + 1;
+      croquis.cols  = maxCol  + 1;
+      // Actualizar los inputs para que reflejen el tamaño real
+      const inpFilas = document.getElementById("croquis-filas");
+      const inpCols  = document.getElementById("croquis-cols");
+      if (inpFilas) inpFilas.value = croquis.filas;
+      if (inpCols)  inpCols.value  = croquis.cols;
     } else {
       // Nuevo croquis sin datos guardados
       croquis.bancos = {};
