@@ -5582,7 +5582,14 @@ async function crearQuizDesdeEditor() {
         preguntas:    quizApp.preguntas,
         createdAt:    new Date().toISOString()
       };
-      setTimeout(() => mostrarEstadoExistente(), 1200);
+      setTimeout(() => {
+        mostrarEstadoExistente();
+        // Aviso sobre paso manual necesario
+        const info = document.getElementById("quiz-info-existente");
+        if (info) info.innerHTML += `<div style="margin-top:8px;padding:8px;background:#f59e0b22;border:1px solid #f59e0b;border-radius:6px;font-size:11px;color:#f59e0b">
+          ⚠ <strong>Paso requerido:</strong> Para que los alumnos vean su puntaje al finalizar, abrí el formulario → ⚙️ Configuración → Calificaciones → activá <em>"Publicar puntuación → Inmediatamente después del envío"</em>.
+        </div>`;
+      }, 1200);
     } else {
       msg.textContent = "Error: " + data.message;
       msg.style.color = "var(--red)";
