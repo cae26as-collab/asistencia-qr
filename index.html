@@ -603,6 +603,21 @@ select:focus,input[type="date"]:focus{border-color:var(--accent)}
     <div id="not-qr-reader" style="border-radius:var(--radius);overflow:hidden;background:#000;width:100%;aspect-ratio:1;max-width:360px;margin:0 auto"></div>
     <button class="btn btn-danger" id="not-btn-detener" onclick="detenerEscaneoEntrega()" style="display:none">⏹ Detener scanner</button>
     <button class="btn btn-primary" id="not-btn-iniciar-scan" disabled onclick="iniciarEscaneoEntrega()">📷 Iniciar scanner de entregas</button>
+
+    <!-- Panel de nota inmediata — aparece tras escanear exitosamente -->
+    <div id="not-panel-nota-inmediata" style="display:none;background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:14px;margin-top:4px">
+      <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">Cargar nota ahora (opcional)</div>
+      <div id="not-panel-nota-alumno" style="font-size:13px;font-weight:600;margin-bottom:10px"></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="number" id="not-nota-inmediata" min="1" max="10" step="0.5"
+          placeholder="Nota (1–10)"
+          style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:18px;font-weight:700;padding:10px 14px;outline:none;text-align:center"
+          onkeydown="if(event.key==='Enter') guardarNotaInmediata()">
+        <button class="btn btn-primary" onclick="guardarNotaInmediata()">💾 Guardar</button>
+        <button class="btn btn-secondary" onclick="cerrarNotaInmediata()">Omitir</button>
+      </div>
+      <div id="not-nota-inmediata-msg" style="font-size:12px;margin-top:6px;min-height:18px"></div>
+    </div>
   </div>
 
   <!-- ── Sub-tab: Rendimiento ─────────────────────────────── -->
@@ -3050,7 +3065,7 @@ async function cargarListaNotas() {
   contenedor.innerHTML = '<div class="empty-state"><div class="spinner" style="margin:0 auto"></div></div>';
 
   try {
-    const url  = `${ENDPOINT_URL}?action=getNotas&curso=${encodeURIComponent(curso)}&modalidad=${encodeURIComponent(modalidad)}&materia=${encodeURIComponent(materia)}&periodo=${encodeURIComponent(periodo)}`;
+    const url  = `${ENDPOINT_URL}?action=getNotas&curso=${encodeURIComponent(curso)}&modalidad=${encodeURIComponent(modalidad)}&materia=${encodeURIComponent(materia)}&periodo=${encodeURIComponent(periodo)}&idTrabajo=${encodeURIComponent(idTrabajo)}`;
     const res  = await fetch(url, {redirect:"follow"});
     const data = await res.json();
     const alumnos = data.alumnos || [];
@@ -3195,8 +3210,74 @@ async function onScanEntrega(scanned) {
     const data = await res.json();
     const tipo = data.semaforo || (data.status === "ok" ? "warn" : "err");
     setNotSemaforo(tipo, data.nombre || "Alumno", data.message || "");
+
+    // Si el escaneo fue exitoso (entrega nueva o repetida sin nota),
+    // mostrar panel para cargar nota inmediatamente
+    if ((data.status === "ok" || data.status === "repetido") && data.nombre) {
+      const sinNota = !data.nota || data.nota === "";
+      if (sinNota) {
+        notasApp._escaneoActual = { dni, idTrabajo,
+          curso, modalidad, materia, nombre: data.nombre };
+        mostrarPanelNotaInmediata(data.nombre);
+      }
+    }
   } catch(e) { setNotSemaforo("err","Error de red", e.message); }
   finally { setTimeout(() => { notasApp.processingEntr = false; }, 2500); }
+}
+
+// ── Panel de nota inmediata tras escanear ────────────────────
+function mostrarPanelNotaInmediata(nombre) {
+  const panel = document.getElementById("not-panel-nota-inmediata");
+  document.getElementById("not-panel-nota-alumno").textContent = nombre;
+  document.getElementById("not-nota-inmediata").value = "";
+  document.getElementById("not-nota-inmediata-msg").textContent = "";
+  panel.style.display = "block";
+  setTimeout(() => document.getElementById("not-nota-inmediata").focus(), 100);
+}
+
+function cerrarNotaInmediata() {
+  document.getElementById("not-panel-nota-inmediata").style.display = "none";
+  notasApp._escaneoActual = null;
+}
+
+async function guardarNotaInmediata() {
+  const ctx  = notasApp._escaneoActual;
+  if (!ctx) return;
+  const nota = parseFloat(document.getElementById("not-nota-inmediata").value);
+  const msg  = document.getElementById("not-nota-inmediata-msg");
+
+  if (isNaN(nota) || nota < 1 || nota > 10) {
+    msg.textContent = "Ingresá una nota entre 1 y 10";
+    msg.style.color = "var(--red)";
+    return;
+  }
+
+  const btn = document.querySelector("#not-panel-nota-inmediata .btn-primary");
+  btn.textContent = "⏳"; btn.disabled = true;
+  try {
+    const res  = await fetch(ENDPOINT_URL, {
+      method:"POST", redirect:"follow",
+      headers:{"Content-Type":"text/plain;charset=UTF-8"},
+      body: JSON.stringify({ action:"registrarNota",
+        curso: ctx.curso, modalidad: ctx.modalidad, materia: ctx.materia,
+        dni: ctx.dni, idTrabajo: ctx.idTrabajo, nota })
+    });
+    const data = await res.json();
+    if (data.status === "ok") {
+      msg.textContent = `✓ Nota ${nota} guardada`;
+      msg.style.color = "var(--green)";
+      setNotSemaforo("ok", ctx.nombre, `Entrega registrada · Nota: ${nota}`);
+      setTimeout(() => cerrarNotaInmediata(), 1800);
+    } else {
+      msg.textContent = "Error: " + data.message;
+      msg.style.color = "var(--red)";
+    }
+  } catch(e) {
+    msg.textContent = "Error de red: " + e.message;
+    msg.style.color = "var(--red)";
+  } finally {
+    btn.textContent = "💾 Guardar"; btn.disabled = false;
+  }
 }
 
 function setNotSemaforo(tipo, nombre, sub) {
