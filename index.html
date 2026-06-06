@@ -3115,6 +3115,7 @@ async function guardarNota(dni, idTrabajo, input) {
   const nota  = parseFloat(input.value);
   if (isNaN(nota) || nota < 1 || nota > 10) { input.style.borderColor = "var(--red)"; return; }
   input.style.borderColor = "var(--border)";
+  input.disabled = true;
   const curso    = document.getElementById("not-curso").value;
   const modalidad= document.getElementById("not-modalidad").value;
   const materia  = document.getElementById("not-materia").value;
@@ -3125,9 +3126,29 @@ async function guardarNota(dni, idTrabajo, input) {
       body: JSON.stringify({ action:"registrarNota", curso, modalidad, materia, dni, idTrabajo, nota })
     });
     const data = await res.json();
-    input.style.borderColor = data.status === "ok" ? "var(--green)" : "var(--red)";
-    setTimeout(() => { input.style.borderColor = "var(--border)"; }, 1500);
-  } catch(e) { input.style.borderColor = "var(--red)"; }
+    if (data.status === "ok") {
+      input.style.borderColor = "var(--green)";
+      input.style.background  = "#dcfce7";
+      setTimeout(() => {
+        input.style.borderColor = "var(--border)";
+        input.style.background  = "";
+      }, 1500);
+    } else {
+      input.style.borderColor = "var(--red)";
+      input.style.background  = "#fee2e2";
+      // Mostrar error visible junto al input
+      const errSpan = input.nextElementSibling || document.createElement("span");
+      errSpan.textContent = "⚠ " + (data.message || "Error al guardar");
+      errSpan.style.cssText = "font-size:10px;color:var(--red);display:block;margin-top:2px";
+      if (!input.nextElementSibling) input.parentNode.appendChild(errSpan);
+      setTimeout(() => { errSpan.textContent = ""; input.style.background = ""; }, 4000);
+    }
+  } catch(e) {
+    input.style.borderColor = "var(--red)";
+    input.style.background  = "#fee2e2";
+  } finally {
+    input.disabled = false;
+  }
 }
 
 // ── Cerrar período ───────────────────────────────────────────
