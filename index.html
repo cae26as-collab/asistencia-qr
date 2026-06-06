@@ -633,8 +633,9 @@ select:focus,input[type="date"]:focus{border-color:var(--accent)}
     <div id="not-inf-preview" style="display:none">
       <div class="card">
         <div class="card-label">Vista previa</div>
-        <div id="not-inf-contenido"></div>
-        <button class="btn btn-primary" style="margin-top:12px" onclick="imprimirInformeNotas()">🖨 Exportar PDF</button>
+        <div id="not-inf-contenido"
+          style="background:#fff;color:#111;border-radius:8px;padding:12px;margin-bottom:8px;overflow-x:auto"></div>
+        <button class="btn btn-primary" style="margin-top:4px" onclick="imprimirInformeNotas()">🖨 Exportar PDF</button>
       </div>
     </div>
   </div>
@@ -3471,8 +3472,9 @@ async function buildInformePeriodo(data) {
 
     let celdas = "";
     [...tps,...evs].forEach((t,j) => {
+      const disp = a.notasDisplay?.[t.id];
       const nota = a.notas?.[t.id];
-      const notaStr = nota !== "" && nota !== null && nota !== undefined ? nota : "—";
+      const notaStr = disp !== undefined ? disp : (nota !== "" && nota !== null && nota !== undefined ? nota : "s/n");
       celdas += `<td style="${tdS}">${j+1}</td><td style="${tdS};font-weight:700">${notaStr}</td>`;
     });
 
@@ -3480,11 +3482,11 @@ async function buildInformePeriodo(data) {
       <td style="${tdS}">${i+1}</td>
       <td style="${tdS};text-align:left;font-weight:500">${a.nombre}</td>
       ${celdas}
-      <td style="${tdS};color:#166534;font-weight:700">${a.promTP ?? "—"}</td>
-      <td style="${tdS};color:#92400e;font-weight:700">${a.promEV ?? "—"}</td>
-      <td style="${tdS};font-weight:800;color:${txt}">${a.nfMuestra || "—"}</td>
-      <td style="${tdS};color:${txt}">${a.aprueba ? "✓ Aprueba" : "✗ No ap."}</td>
-      <td style="${tdS}">${a.asistenciaPct !== null && a.asistenciaPct !== undefined ? a.asistenciaPct+"%" : "—"}</td>
+      <td style="${tdS};color:#166534;font-weight:700">${a.promTP ?? ""}</td>
+      <td style="${tdS};color:#92400e;font-weight:700">${a.promEV ?? ""}</td>
+      <td style="${tdS};font-weight:800;color:${txt}">${a.nfMuestra || ""}</td>
+      <td style="${tdS};color:${txt}">${a.aprueba !== undefined ? (a.aprueba ? "✓ Aprueba" : "✗ No ap.") : ""}</td>
+      <td style="${tdS}">${a.asistenciaPct !== null && a.asistenciaPct !== undefined ? a.asistenciaPct+"%" : ""}</td>
     </tr>`;
   });
 
@@ -3552,12 +3554,10 @@ async function buildInformeGeneral(data) {
   });
 
   // Unificar alumnos por nombre/dni entre períodos
-  const allNames = new Set();
-  periodos.forEach(p => (p.alumnos||[]).forEach(a => allNames.add(a.nombre)));
   const alumnosMap = {};
   periodos.forEach((p,pi) => {
     (p.alumnos||[]).forEach(a => {
-      if (!alumnosMap[a.nombre]) alumnosMap[a.nombre] = { nombre:a.nombre, periodos:{} };
+      if (!alumnosMap[a.nombre]) alumnosMap[a.nombre] = { nombre:a.nombre, dni:a.dni, periodos:{} };
       alumnosMap[a.nombre].periodos[pi] = a;
     });
   });
@@ -3577,16 +3577,27 @@ async function buildInformeGeneral(data) {
       const sem = a.semaforo || "rojo";
       const txt = colorTxt[sem];
       const bgNF= colorBgNF[sem];
-      [...tps,...evs].forEach((_,j) => {
-        const nota = a.notas?.[_.id];
-        const ns   = nota !== "" && nota !== null && nota !== undefined ? nota : "—";
-        celdas += `<td style="${tdS}">${j+1}</td><td style="${tdS};font-weight:700">${ns}</td>`;
-      });
-      celdas += `<td style="${tdS};color:#166534;font-weight:700">${a.promTP ?? "—"}</td>`;
-      celdas += `<td style="${tdS};color:#92400e;font-weight:700">${a.promEV ?? "—"}</td>`;
-      celdas += `<td style="${tdS};font-weight:800;color:${txt};background:${bgNF}">${a.nfMuestra || "—"}</td>`;
-      celdas += `<td style="${tdS};color:${txt};background:${bgNF}">${a.aprueba ? "✓" : "✗"}</td>`;
-      celdas += `<td style="${tdS}">${a.asistenciaPct !== null && a.asistenciaPct !== undefined ? a.asistenciaPct+"%" : "—"}</td>`;
+      const tieneDatosP = p.trabajos && p.trabajos.length > 0;
+      if (!tieneDatosP) {
+        // Período sin datos: celdas en blanco
+        [...tps,...evs].forEach(() => {
+          celdas += `<td style="${tdS}"></td><td style="${tdS}"></td>`;
+        });
+        celdas += `<td style="${tdS}"></td><td style="${tdS}"></td>`;
+        celdas += `<td style="${tdS}"></td><td style="${tdS}"></td><td style="${tdS}"></td>`;
+      } else {
+        [...tps,...evs].forEach((_,j) => {
+          const nota = a.notas?.[_.id];
+          const disp = a.notasDisplay?.[_.id];
+          const ns   = disp !== undefined ? disp : (nota !== "" && nota !== null && nota !== undefined ? nota : "s/n");
+          celdas += `<td style="${tdS}">${j+1}</td><td style="${tdS};font-weight:700">${ns}</td>`;
+        });
+        celdas += `<td style="${tdS};color:#166534;font-weight:700">${a.promTP ?? ""}</td>`;
+        celdas += `<td style="${tdS};color:#92400e;font-weight:700">${a.promEV ?? ""}</td>`;
+        celdas += `<td style="${tdS};font-weight:800;color:${txt};background:${bgNF}">${a.nfMuestra || ""}</td>`;
+        celdas += `<td style="${tdS};color:${txt};background:${bgNF}">${a.aprueba !== undefined ? (a.aprueba ? "✓" : "✗") : ""}</td>`;
+        celdas += `<td style="${tdS}">${a.asistenciaPct !== null && a.asistenciaPct !== undefined ? a.asistenciaPct+"%" : ""}</td>`;
+      }
     });
     const bgRow = i%2===0 ? "#fff" : "#f9fafb";
     filas += `<tr style="background:${bgRow}">
@@ -3642,11 +3653,12 @@ async function buildPlanillaCalif(data) {
     th2 += `<th style="${thBg}${thS}">Obs.</th>`;
   });
 
-  // Unificar alumnos
+  // Unificar alumnos — usar el período con más alumnos como lista maestra
   const alumnosMap = {};
+  // Primero agregar todos los alumnos de todos los períodos
   periodos.forEach((p,pi) => {
     (p.alumnos||[]).forEach(a => {
-      if (!alumnosMap[a.nombre]) alumnosMap[a.nombre] = { nombre:a.nombre, periodos:{} };
+      if (!alumnosMap[a.nombre]) alumnosMap[a.nombre] = { nombre:a.nombre, dni:a.dni, periodos:{} };
       alumnosMap[a.nombre].periodos[pi] = a;
     });
   });
@@ -3661,13 +3673,15 @@ async function buildPlanillaCalif(data) {
     const bgRow  = i%2===0 ? "#fff" : "#f9fafb";
     let celdas   = "";
     periodos.forEach((_,pi) => {
-      const a   = al.periodos[pi] || {};
-      const sem = a.semaforo || "rojo";
-      const bg  = colorBg[sem];
-      const txt = colorTxt[sem];
-      celdas += `<td style="${tdBase};background:${bg};color:${txt};font-weight:800">${a.nfMuestra || "—"}</td>`;
-      celdas += `<td style="${tdBase};background:${bg};color:${txt}">${a.aprueba ? "✓ Aprueba" : "✗ No ap."}</td>`;
-      celdas += `<td style="${tdBase}">${a.asistenciaPct !== null && a.asistenciaPct !== undefined ? a.asistenciaPct+"%" : "—"}</td>`;
+      const a    = al.periodos[pi] || {};
+      const p    = periodos[pi];
+      const tDP  = p && p.trabajos && p.trabajos.length > 0;
+      const sem  = tDP ? (a.semaforo || "rojo") : null;
+      const bg   = sem ? colorBg[sem]  : "#fff";
+      const txt  = sem ? colorTxt[sem] : "#111";
+      celdas += `<td style="${tdBase};background:${bg};color:${txt};font-weight:800">${tDP && a.nfMuestra ? a.nfMuestra : ""}</td>`;
+      celdas += `<td style="${tdBase};background:${bg};color:${txt}">${tDP && a.aprueba !== undefined ? (a.aprueba ? "✓ Aprueba" : "✗ No ap.") : ""}</td>`;
+      celdas += `<td style="${tdBase}">${tDP && a.asistenciaPct !== null && a.asistenciaPct !== undefined ? a.asistenciaPct+"%" : ""}</td>`;
       celdas += `<td style="${tdBase};min-width:40px"></td>`; // Obs. manuscrita
     });
     filas += `<tr style="background:${bgRow}">
