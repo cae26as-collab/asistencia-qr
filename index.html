@@ -3076,14 +3076,32 @@ async function cargarListaNotas() {
     }
 
     contenedor.innerHTML = alumnos.map((a, i) => {
-      const nota = a.notas[idTrabajo];
-      const notaVal = nota !== "" && nota !== null && nota !== undefined ? nota : "";
-      return `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:6px">
+      const nota      = a.notas?.[idTrabajo];
+      const display   = a.notasDisplay?.[idTrabajo];
+      const notaVal   = (nota !== "" && nota !== null && nota !== undefined && !isNaN(parseFloat(nota))) ? nota : "";
+      const esCalif   = display === "calificar";
+      const esSN      = display === "s/n";
+      const indicador = esCalif
+        ? '<span style="font-size:10px;color:#f59e0b;font-weight:700">CALIFICAR</span>'
+        : esSN
+          ? '<span style="font-size:10px;color:var(--text2)">s/n</span>'
+          : "";
+      const pct = a.asistPct !== null && a.asistPct !== undefined
+        ? `<span style="font-size:11px;color:${a.asistPct>=65?'var(--green)':a.asistPct>=50?'#f59e0b':'var(--red)'}">${a.asistPct}%</span>`
+        : '<span style="font-size:11px;color:var(--text2)">—</span>';
+      const borderColor = esCalif ? '#f59e0b' : 'var(--border)';
+      return `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface);border:1px solid ${borderColor};border-radius:8px;margin-bottom:6px">
         <div class="presente-avatar" style="background:var(--accent);font-size:11px">${i+1}</div>
-        <span style="flex:1;font-size:13px;font-weight:500">${a.nombre}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:500">${a.nombre}</div>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:2px">
+            ${indicador}
+            <span style="font-size:11px;color:var(--text2)">Asist: </span>${pct}
+          </div>
+        </div>
         <input type="number" min="1" max="10" step="0.01" value="${notaVal}"
-          placeholder="—"
-          style="width:60px;text-align:center;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;font-weight:700;padding:6px;outline:none"
+          placeholder="${esSN?'s/n':esCalif?'pendiente':'—'}"
+          style="width:65px;text-align:center;background:var(--bg);border:1px solid ${borderColor};border-radius:8px;color:var(--text);font-size:14px;font-weight:700;padding:6px;outline:none"
           onchange="guardarNota('${a.dni}','${idTrabajo}',this)">
       </div>`;
     }).join("");
