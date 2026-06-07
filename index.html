@@ -345,6 +345,25 @@ select:focus,input[type="date"]:focus{border-color:var(--accent)}
           <div class="empty-state">Seleccioná una clase para ver los presentes</div>
         </div>
       </div>
+
+      <!-- Panel de ausentes con registro manual -->
+      <div class="card" id="card-ausentes" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div class="card-label" style="margin-bottom:0">Ausentes — registro manual</div>
+          <span id="ausentes-counter" class="counter-badge" style="background:#6b7280">0</span>
+        </div>
+        <p style="font-size:11px;color:var(--text2);margin-bottom:10px">
+          Marcá los alumnos presentes que no fueron escaneados y guardá.
+        </p>
+        <div id="ausentes-list" class="presentes-list"></div>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button class="btn btn-primary btn-sm" id="btn-guardar-manual" onclick="guardarAsistenciaManual()" style="display:none">
+            ✓ Guardar presentes seleccionados
+          </button>
+          <button class="btn btn-secondary btn-sm" onclick="seleccionarTodosAusentes()">Seleccionar todos</button>
+        </div>
+        <div id="asist-manual-msg" style="font-size:12px;margin-top:6px;min-height:16px"></div>
+      </div>
     </div>
     <div id="sub-inasist" style="display:none">
       <div class="card">
@@ -1446,7 +1465,114 @@ async function cargarPresentesDesdeBackend() {
     });
     renderPresentes();
     renderInasistencias(data.inasistencias||[], data.totalFechas||0);
+
+    // Cargar panel de ausentes para registro manual
+    await cargarAusentesManual(curso, modalidad, materia);
   } catch(e) { console.warn(e); }
+}
+
+// ── Panel de ausentes para registro manual ───────────────────
+async function cargarAusentesManual(curso, modalidad, materia) {
+  const card = document.getElementById("card-ausentes");
+  const lista = document.getElementById("ausentes-list");
+  const counter = document.getElementById("ausentes-counter");
+  if (!card || !lista) return;
+
+  try {
+    // Obtener todos los alumnos del curso
+    const urlEst = `${ENDPOINT_URL}?action=getEstudiantes&curso=${encodeURIComponent(curso)}&modalidad=${encodeURIComponent(modalidad)}`;
+    const resEst = await fetch(urlEst, {redirect:"follow"});
+    const dataEst = await resEst.json();
+    const todos = (dataEst.estudiantes||[]).filter(a => a.activo !== false);
+    if (!todos.length) { card.style.display = "none"; return; }
+
+    // Filtrar los que NO están en presentes
+    const presenteDnis = new Set(app.presentes.map(p => p.dni.toString().trim()));
+    const ausentes = todos.filter(a => !presenteDnis.has(a.dni.toString().trim()));
+
+    counter.textContent = ausentes.length;
+    card.style.display = "block";
+
+    if (!ausentes.length) {
+      lista.innerHTML = '<div class="empty-state" style="color:var(--green)">✓ Todos los alumnos están presentes</div>';
+      document.getElementById("btn-guardar-manual").style.display = "none";
+      return;
+    }
+
+    lista.innerHTML = ausentes.map(a => {
+      const fotoSrc = imgCache[a.fotoUrl] || "";
+      return `<div class="presente-item" style="opacity:0.7" id="ausente-row-${a.dni}">
+        <div style="width:34px;height:34px;border-radius:50%;overflow:hidden;flex-shrink:0;background:var(--surface2);border:2px solid var(--border)">
+          ${fotoSrc
+            ? `<img src="${fotoSrc}" style="width:100%;height:100%;object-fit:cover">`
+            : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:16px">👤</div>`}
+        </div>
+        <span class="presente-nombre" style="flex:1">${a.nombre}</span>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;flex-shrink:0">
+          <input type="checkbox" value="${a.dni}" data-nombre="${a.nombre.replace(/"/g,"&quot;")}"
+            style="accent-color:var(--accent);width:18px;height:18px"
+            onchange="onCheckAusente(this)">
+          <span style="font-size:11px;color:var(--text2)">Presente</span>
+        </label>
+      </div>`;
+    }).join("");
+
+    document.getElementById("btn-guardar-manual").style.display = "none";
+    document.getElementById("asist-manual-msg").textContent = "";
+
+  } catch(e) { console.warn("Error cargando ausentes:", e); }
+}
+
+function onCheckAusente(chk) {
+  const row = document.getElementById(`ausente-row-${chk.value}`);
+  if (row) row.style.opacity = chk.checked ? "1" : "0.7";
+  // Mostrar botón guardar si hay alguno seleccionado
+  const haySeleccion = document.querySelectorAll("#ausentes-list input[type=checkbox]:checked").length > 0;
+  document.getElementById("btn-guardar-manual").style.display = haySeleccion ? "" : "none";
+}
+
+function seleccionarTodosAusentes() {
+  const checks = document.querySelectorAll("#ausentes-list input[type=checkbox]");
+  const todos  = Array.from(checks);
+  const hayDesmarcados = todos.some(c => !c.checked);
+  todos.forEach(c => { c.checked = hayDesmarcados; onCheckAusente(c); });
+}
+
+async function guardarAsistenciaManual() {
+  const checks  = document.querySelectorAll("#ausentes-list input[type=checkbox]:checked");
+  if (!checks.length) return;
+  const btn     = document.getElementById("btn-guardar-manual");
+  const msg     = document.getElementById("asist-manual-msg");
+  const {curso, modalidad, materia, fecha} = app.clase;
+
+  btn.textContent = "⏳ Guardando..."; btn.disabled = true;
+  msg.textContent = "";
+
+  let ok = 0, errores = 0;
+  for (const chk of checks) {
+    const dni    = chk.value;
+    const nombre = chk.dataset.nombre;
+    try {
+      const res  = await fetch(ENDPOINT_URL, {
+        method:"POST", redirect:"follow",
+        headers:{"Content-Type":"text/plain;charset=UTF-8"},
+        body: JSON.stringify({ action:"asist_registrar", dni, fecha, curso, modalidad, materia })
+      });
+      const data = await res.json();
+      if (data.status === "ok" || data.semaforo === "ok" || data.semaforo === "warn") {
+        app.presentes.push({ nombre, dni });
+        ok++;
+      } else { errores++; }
+    } catch(e) { errores++; }
+  }
+
+  btn.textContent = "✓ Guardar presentes seleccionados"; btn.disabled = false;
+  msg.textContent = `✓ ${ok} registrado${ok!==1?"s":""}${errores?` · ${errores} error${errores!==1?"es":""}`:""}`; 
+  msg.style.color = errores ? "var(--red)" : "var(--green)";
+
+  // Recargar la lista completa
+  renderPresentes();
+  await cargarAusentesManual(curso, modalidad, materia);
 }
 
 function agregarPresente(nombre,dni) {
