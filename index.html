@@ -3203,15 +3203,9 @@ async function cargarListaNotas() {
       return;
     }
 
-    // Separar en dos listas según si tienen entrega del trabajo seleccionado
-    const conEntrega    = todos.filter(a => {
-      const d = a.notasDisplay?.[idTrabajo];
-      return d !== undefined; // notasDisplay solo tiene la clave si hay entrega o nota
-    });
-    const sinEntrega    = todos.filter(a => {
-      const d = a.notasDisplay?.[idTrabajo];
-      return d === undefined;
-    });
+    // Separar en dos listas usando el campo entregados del GAS
+    const conEntrega = todos.filter(a => a.entregados && a.entregados.includes(idTrabajo));
+    const sinEntrega = todos.filter(a => !a.entregados || !a.entregados.includes(idTrabajo));
 
     function buildFila(a, i, bloque) {
       const nota      = a.notas?.[idTrabajo];
