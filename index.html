@@ -4355,6 +4355,8 @@ async function cargarListaEstudiantes() {
             onclick="toggleEstudiante('${a.dni}',${a.fila||0},${!activo})">
             ${activo?'✓':'✗'}
           </button>
+          <button class="btn btn-sm" style="font-size:11px;padding:4px 8px;background:#dc262622;color:#dc2626;border:1px solid #dc262644" title="Dar de baja o eliminar"
+            onclick="abrirDialogoBajaEstudiante('${a.dni}','${nom}',${a.fila||0})">🗑</button>
         </div>
       </div>`;
     }).join("");
@@ -5362,6 +5364,164 @@ async function imprimirCroquis() {
   win.document.close();
 }
 
+
+// ════════════════════════════════════════════════════════════
+//  MÓDULO BAJA / ELIMINACIÓN DE ESTUDIANTES
+// ════════════════════════════════════════════════════════════
+const bajaApp = { dni: null, nombre: null, fila: null, opcion: null };
+
+function abrirDialogoBajaEstudiante(dni, nombre, fila) {
+  bajaApp.dni    = dni;
+  bajaApp.nombre = nombre;
+  bajaApp.fila   = fila;
+  bajaApp.opcion = null;
+
+  document.getElementById("baja-nombre-display").textContent = nombre;
+  document.getElementById("baja-msg").textContent = "";
+  document.getElementById("btn-confirmar-baja").disabled = true;
+  document.getElementById("btn-confirmar-baja").style.opacity = "0.5";
+  document.getElementById("baja-confirmar-check").checked = false;
+  document.getElementById("baja-confirmar-eliminar").style.display = "none";
+  document.getElementById("baja-cambio-selector").style.display = "none";
+
+  // Resetear estilos de opciones
+  ["pase","cambio","eliminar"].forEach(o => {
+    const el = document.getElementById(`baja-opt-${o}`);
+    if (el) el.style.background = "";
+  });
+
+  // Poblar selector de cursos para cambio
+  const sel = document.getElementById("baja-nuevo-curso");
+  sel.innerHTML = '<option value="">— Seleccioná —</option>';
+  const curso    = document.getElementById("est-curso").value;
+  const modalidad= document.getElementById("est-modal").value;
+  app.config.forEach(c => {
+    // Excluir el curso actual
+    if (c.curso == parseInt(curso) && normalizar(c.modalidad) === normalizar(modalidad)) return;
+    if (!c.activa) return;
+    const o = document.createElement("option");
+    o.value = JSON.stringify({ curso: c.curso, modalidad: c.modalidad });
+    o.textContent = `${c.curso}° — ${c.modalidad}`;
+    sel.appendChild(o);
+  });
+
+  const modal = document.getElementById("modal-baja-estudiante");
+  modal.style.display = "flex";
+  document.body.style.overflow = "hidden";
+}
+
+function cerrarModalBaja() {
+  document.getElementById("modal-baja-estudiante").style.display = "none";
+  document.body.style.overflow = "";
+  bajaApp.dni = bajaApp.nombre = bajaApp.fila = bajaApp.opcion = null;
+}
+
+function seleccionarOpcionBaja(opcion) {
+  bajaApp.opcion = opcion;
+
+  // Destacar opción seleccionada
+  ["pase","cambio","eliminar"].forEach(o => {
+    const el = document.getElementById(`baja-opt-${o}`);
+    if (el) el.style.background = o === opcion ? "var(--surface2)" : "";
+  });
+
+  // Mostrar/ocultar sub-paneles
+  document.getElementById("baja-cambio-selector").style.display    = opcion === "cambio"   ? "block" : "none";
+  document.getElementById("baja-confirmar-eliminar").style.display = opcion === "eliminar" ? "block" : "none";
+
+  // Habilitar botón según opción
+  const btn = document.getElementById("btn-confirmar-baja");
+  if (opcion === "pase") {
+    btn.disabled = false; btn.style.opacity = "1";
+    btn.style.background = "#dc2626";
+  } else if (opcion === "cambio") {
+    // Se habilita cuando selecciona el nuevo curso
+    document.getElementById("baja-nuevo-curso").onchange = () => {
+      const ok = !!document.getElementById("baja-nuevo-curso").value;
+      btn.disabled = !ok; btn.style.opacity = ok ? "1" : "0.5";
+    };
+    btn.disabled = true; btn.style.opacity = "0.5";
+  } else if (opcion === "eliminar") {
+    // Se habilita cuando marca el checkbox
+    document.getElementById("baja-confirmar-check").onchange = (e) => {
+      btn.disabled = !e.target.checked;
+      btn.style.opacity = e.target.checked ? "1" : "0.5";
+    };
+    btn.disabled = true; btn.style.opacity = "0.5";
+  }
+}
+
+async function confirmarBajaEstudiante() {
+  const { dni, nombre, fila, opcion } = bajaApp;
+  if (!dni || !opcion) return;
+
+  const btn = document.getElementById("btn-confirmar-baja");
+  const msg = document.getElementById("baja-msg");
+  btn.disabled = true; btn.style.opacity = "0.6";
+  btn.textContent = "⏳ Procesando...";
+  msg.textContent = "";
+
+  const curso    = document.getElementById("est-curso").value;
+  const modalidad= document.getElementById("est-modal").value;
+
+  try {
+    if (opcion === "pase") {
+      // Dar de baja — marcar como ACTIVO=NO
+      const res = await fetch(ENDPOINT_URL, {
+        method:"POST", redirect:"follow",
+        headers:{"Content-Type":"text/plain;charset=UTF-8"},
+        body: JSON.stringify({ action:"toggleEstudiante", dni, fila, activo: false })
+      });
+      const data = await res.json();
+      if (data.status === "ok") {
+        msg.textContent = "✓ Alumno dado de baja. Su historial se conserva.";
+        msg.style.color = "var(--green)";
+        setTimeout(() => { cerrarModalBaja(); cargarListaEstudiantes(); }, 1500);
+      } else throw new Error(data.message);
+
+    } else if (opcion === "cambio") {
+      const nuevoCursoData = JSON.parse(document.getElementById("baja-nuevo-curso").value);
+      // 1. Dar de baja en curso actual
+      await fetch(ENDPOINT_URL, {
+        method:"POST", redirect:"follow",
+        headers:{"Content-Type":"text/plain;charset=UTF-8"},
+        body: JSON.stringify({ action:"toggleEstudiante", dni, fila, activo: false })
+      });
+      // 2. Activar en nuevo curso
+      const res2 = await fetch(ENDPOINT_URL, {
+        method:"POST", redirect:"follow",
+        headers:{"Content-Type":"text/plain;charset=UTF-8"},
+        body: JSON.stringify({ action:"cambiarCursoEstudiante", dni,
+          cursoNuevo: nuevoCursoData.curso, modalidadNueva: nuevoCursoData.modalidad })
+      });
+      const data2 = await res2.json();
+      if (data2.status === "ok") {
+        msg.textContent = `✓ Alumno trasladado a ${nuevoCursoData.curso}° — ${nuevoCursoData.modalidad}`;
+        msg.style.color = "var(--green)";
+        setTimeout(() => { cerrarModalBaja(); cargarListaEstudiantes(); }, 1800);
+      } else throw new Error(data2.message);
+
+    } else if (opcion === "eliminar") {
+      const res = await fetch(ENDPOINT_URL, {
+        method:"POST", redirect:"follow",
+        headers:{"Content-Type":"text/plain;charset=UTF-8"},
+        body: JSON.stringify({ action:"eliminarEstudiante", dni, curso, modalidad })
+      });
+      const data = await res.json();
+      if (data.status === "ok") {
+        msg.textContent = `✓ Eliminado de ${data.hojasAfectadas} hoja${data.hojasAfectadas!==1?"s":""}.`;
+        msg.style.color = "var(--green)";
+        setTimeout(() => { cerrarModalBaja(); cargarListaEstudiantes(); }, 1800);
+      } else throw new Error(data.message);
+    }
+  } catch(e) {
+    msg.textContent = "Error: " + e.message;
+    msg.style.color = "var(--red)";
+    btn.disabled = false; btn.style.opacity = "1";
+    btn.textContent = "Confirmar";
+  }
+}
+
 function aplicarZoomCroquis(val) {
   const inner = document.getElementById("croquis-inner");
   if (inner) inner.style.transform = `scale(${val/100})`;
@@ -6305,5 +6465,76 @@ async function confirmarImportarNotas() {
   </div>
 </div>
 
+
+<!-- ══════════════════════════════════════════════════════════
+     MODAL BAJA/ELIMINACIÓN DE ESTUDIANTE
+══════════════════════════════════════════════════════════ -->
+<div id="modal-baja-estudiante" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:2000;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border-radius:16px;padding:22px;width:90%;max-width:420px;max-height:90vh;overflow-y:auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div style="font-size:15px;font-weight:700">Gestionar estudiante</div>
+      <button onclick="cerrarModalBaja()" style="background:none;border:none;color:var(--text2);font-size:22px;cursor:pointer">✕</button>
+    </div>
+
+    <div id="baja-nombre-display" style="font-size:13px;font-weight:600;padding:10px;background:var(--bg);border-radius:8px;margin-bottom:16px"></div>
+
+    <!-- Opción 1: Dar de baja con pase -->
+    <div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;cursor:pointer"
+      onclick="seleccionarOpcionBaja('pase')" id="baja-opt-pase">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:20px">🚫</span>
+        <div>
+          <div style="font-size:13px;font-weight:700">Dar de baja (pase o retiro)</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:2px">El alumno queda inactivo. Su historial de notas y asistencia se conserva en los informes históricos.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Opción 2: Cambio de curso -->
+    <div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;cursor:pointer"
+      onclick="seleccionarOpcionBaja('cambio')" id="baja-opt-cambio">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:20px">🔄</span>
+        <div>
+          <div style="font-size:13px;font-weight:700">Cambio de curso</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:2px">Se da de baja en este curso y se activa en otro curso del sistema.</div>
+        </div>
+      </div>
+      <div id="baja-cambio-selector" style="display:none;margin-top:10px">
+        <label style="font-size:12px;color:var(--text2)">Seleccioná el nuevo curso:</label>
+        <select id="baja-nuevo-curso" style="width:100%;margin-top:4px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:8px">
+          <option value="">— Seleccioná —</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Opción 3: Eliminar completamente -->
+    <div style="border:1px solid #dc2626;border-radius:10px;padding:12px;margin-bottom:16px;cursor:pointer"
+      onclick="seleccionarOpcionBaja('eliminar')" id="baja-opt-eliminar">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:20px">🗑</span>
+        <div>
+          <div style="font-size:13px;font-weight:700;color:#dc2626">Eliminar completamente</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:2px">⚠ Elimina al alumno del padrón y de todas las hojas del sistema. Solo para errores de carga. Esta acción no se puede deshacer.</div>
+        </div>
+      </div>
+      <div id="baja-confirmar-eliminar" style="display:none;margin-top:10px;padding:8px;background:#dc262611;border-radius:6px">
+        <div style="font-size:11px;color:#dc2626;margin-bottom:6px;font-weight:600">⚠ Esta acción eliminará permanentemente todos los registros del alumno.</div>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px">
+          <input type="checkbox" id="baja-confirmar-check" style="accent-color:#dc2626">
+          Entiendo que esta acción no se puede deshacer
+        </label>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-secondary" style="flex:1" onclick="cerrarModalBaja()">Cancelar</button>
+      <button class="btn" id="btn-confirmar-baja" disabled
+        style="flex:1;background:#dc2626;color:#fff;opacity:0.5"
+        onclick="confirmarBajaEstudiante()">Confirmar</button>
+    </div>
+    <div id="baja-msg" style="font-size:12px;margin-top:8px;min-height:16px;text-align:center"></div>
+  </div>
+</div>
 </body>
 </html>
