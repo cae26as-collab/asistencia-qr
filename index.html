@@ -3367,7 +3367,10 @@ async function guardarNotaFila(dni, idTrabajo, bloque, nombre, registrarEntrega)
 }
 
 // ── Guardar todos los marcados en bloque "sin entrega" ───────
+let _guardandoLote = false;
+
 async function guardarTodosNoEntregados(idTrabajo) {
+  if (_guardandoLote) return;
   const checks = document.querySelectorAll("#not-lista-notas input[type=checkbox]:checked");
   if (!checks.length) { alert("No hay alumnos marcados como entregados."); return; }
 
@@ -3390,22 +3393,31 @@ async function guardarTodosNoEntregados(idTrabajo) {
     if (!continuar) return;
   }
 
+  // ── Bloquear botón e iniciar progreso ────────────────────
+  _guardandoLote = true;
+  const total = checks.length;
+  const btn = document.querySelector("#not-lista-notas button[onclick^='guardarTodosNoEntregados']");
+  if (btn) { btn.disabled = true; btn.style.opacity = "0.6"; btn.textContent = `⏳ Procesando 0/${total}...`; }
+
   const curso    = document.getElementById("not-curso").value;
   const modalidad= document.getElementById("not-modalidad").value;
   const materia  = document.getElementById("not-materia").value;
   const fecha    = new Date().toISOString().slice(0,10);
-  let okConNota = 0, okSinNota = 0, err = 0;
+  let okConNota = 0, okSinNota = 0, err = 0, procesados = 0;
 
   for (const chk of checks) {
     const rowEl = chk.closest("[id^='nota-row-sin-']");
     const dni   = rowEl?.id.replace("nota-row-sin-","");
-    if (!dni) continue;
+    if (!dni) { procesados++; continue; }
     const inp  = document.getElementById(`inp-sin-${dni}`);
     const nota = inp ? parseFloat(inp.value) : NaN;
     const tieneNota = !isNaN(nota) && nota >= 1 && nota <= 10;
+    const nombre = rowEl?.querySelector("[style*='font-size:13px']")?.textContent?.trim() || dni;
+
+    procesados++;
+    if (btn) btn.textContent = `⏳ ${procesados}/${total} — ${nombre.split(" ")[0]}...`;
 
     try {
-      // Siempre registrar la entrega
       await fetch(ENDPOINT_URL, {
         method:"POST", redirect:"follow",
         headers:{"Content-Type":"text/plain;charset=UTF-8"},
@@ -3413,24 +3425,33 @@ async function guardarTodosNoEntregados(idTrabajo) {
       });
 
       if (tieneNota) {
-        // Registrar nota si la tiene
         const res = await fetch(ENDPOINT_URL, {
           method:"POST", redirect:"follow",
           headers:{"Content-Type":"text/plain;charset=UTF-8"},
           body: JSON.stringify({ action:"registrarNota", curso, modalidad, materia, dni, idTrabajo, nota })
         });
         const data = await res.json();
-        if (data.status === "ok") okConNota++; else err++;
+        if (data.status === "ok") {
+          okConNota++;
+          if (rowEl) { rowEl.style.opacity = "0.4"; rowEl.style.background = "#dcfce722"; }
+        } else { err++; }
       } else {
-        okSinNota++; // entrega registrada, sin nota
+        okSinNota++;
+        if (rowEl) rowEl.style.opacity = "0.4";
       }
     } catch(e) { err++; }
   }
 
-  let msg = `✓ ${okConNota} con nota guardada${okConNota!==1?"s":""}`;
-  if (okSinNota) msg += ` · ${okSinNota} entrega${okSinNota!==1?"s":""} sin nota (pendiente${okSinNota!==1?"s":""})`;
-  if (err)       msg += ` · ${err} error${err!==1?"es":""}`;
-  alert(msg);
+  // ── Restaurar botón y mostrar resultado ──────────────────
+  _guardandoLote = false;
+  if (btn) {
+    btn.disabled = false;
+    btn.style.opacity = "1";
+    btn.style.color = err ? "#f59e0b" : "var(--green)";
+    btn.textContent = `✓ ${okConNota+okSinNota} registrados${err ? ` · ${err} errores` : ""}`;
+    setTimeout(() => { btn.style.color = ""; btn.textContent = "💾 Guardar todos marcados"; }, 3000);
+  }
+
   cargarListaNotas();
 }
 
