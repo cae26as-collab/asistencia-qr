@@ -1278,6 +1278,10 @@ function switchSubTab(sec, tab, btn) {
   document.querySelectorAll(`#sec-${sec} .sub-tab`).forEach(t => t.classList.remove("active"));
   document.getElementById(`${prefix}-${tab}`).classList.add("active");
   if (btn) btn.classList.add("active");
+  // Recargar presentes y ausentes al activar esa pestaña
+  if (sec === "asistencia" && tab === "presentes" && app.clase) {
+    cargarPresentesDesdeBackend();
+  }
 }
 
 function switchSubtabPresentes(panel) {
@@ -1473,14 +1477,18 @@ async function cargarPresentesDesdeBackend() {
 
 // ── Panel de ausentes para registro manual ───────────────────
 async function cargarAusentesManual(curso, modalidad, materia) {
-  const card = document.getElementById("card-ausentes");
-  const lista = document.getElementById("ausentes-list");
+  const card    = document.getElementById("card-ausentes");
+  const lista   = document.getElementById("ausentes-list");
   const counter = document.getElementById("ausentes-counter");
   if (!card || !lista) return;
 
   try {
-    // Obtener todos los alumnos del curso
-    const urlEst = `${ENDPOINT_URL}?action=getEstudiantes&curso=${encodeURIComponent(curso)}&modalidad=${encodeURIComponent(modalidad)}`;
+    // Usar los datos de app.clase directamente
+    const cursoReal    = curso    || app.clase?.curso;
+    const modalReal    = modalidad|| app.clase?.modalidad;
+    if (!cursoReal || !modalReal) { card.style.display = "none"; return; }
+
+    const urlEst = `${ENDPOINT_URL}?action=getEstudiantes&curso=${encodeURIComponent(cursoReal)}&modalidad=${encodeURIComponent(modalReal)}`;
     const resEst = await fetch(urlEst, {redirect:"follow"});
     const dataEst = await resEst.json();
     const todos = (dataEst.estudiantes||[]).filter(a => a.activo !== false);
